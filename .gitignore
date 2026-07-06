@@ -37,3 +37,4 @@ android/local.properties
 *.apk
 *.orig
 *.rej
+android/.kotlin/
