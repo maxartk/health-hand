@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Health Hand</string>
+
+    <!-- Login -->
+    <string name="login_title">Health Hand · Адмін</string>
+    <string name="login_subtitle">Введіть адмін-токен для входу</string>
+    <string name="login_token">Адмін-токен</string>
+    <string name="login_base_url">Базовий URL (за замовч.)</string>
+    <string name="login_button">Увійти</string>
+    <string name="login_error_invalid">Невірний токен</string>
+    <string name="login_error_generic">Помилка входу: %1$s</string>
+    <string name="login_checking">Перевірка…</string>
+
+    <!-- Navigation -->
+    <string name="nav_bookings">Заявки</string>
+    <string name="nav_stats">Статистика</string>
+    <string name="nav_catalog">Каталог</string>
+
+    <!-- Bookings -->
+    <string name="bookings_title">Заявки</string>
+    <string name="bookings_loading">Завантаження…</string>
+    <string name="bookings_empty">Заявок немає</string>
+    <string name="bookings_error">Помилка: %1$s</string>
+    <string name="bookings_retry">Повторити</string>
+    <string name="bookings_status_new">Нові</string>
+    <string name="bookings_status_contacted">Контакт</string>
+    <string name="bookings_status_confirmed">Підтв.</string>
+    <string name="bookings_status_completed">Завершені</string>
+    <string name="bookings_status_cancelled">Скасув.</string>
+    <string name="bookings_status_no_show">Неявки</string>
+    <string name="bookings_status_followup_sent">Follow-up</string>
+    <string name="bookings_status_all">Усі</string>
+    <string name="bookings_change_status">Змінити статус</string>
+    <string name="bookings_assign_appt">Призначити час/майстра</string>
+    <string name="bookings_id">№%1$d</string>
+    <string name="bookings_service">Послуга: %1$s</string>
+    <string name="bookings_date">Дата: %1$s %2$s</string>
+    <string name="bookings_channel">Канал: %1$s</string>
+    <string name="bookings_created">Створено: %1$s</string>
+    <string name="bookings_cancel">Скасувати</string>
+    <string name="bookings_save">Зберегти</string>
+    <string name="bookings_select_status">Оберіть статус</string>
+    <string name="bookings_employee">Майстер</string>
+    <string name="bookings_start_at">Дата і час (YYYY-MM-DDTHH:MM)</string>
+    <string name="bookings_feedback_note">Примітка (опц.)</string>
+
+    <!-- Stats -->
+    <string name="stats_title">Статистика</string>
+    <string name="stats_days_7">7 днів</string>
+    <string name="stats_days_30">30 днів</string>
+    <string name="stats_days_90">90 днів</string>
+    <string name="stats_events">Події</string>
+    <string name="stats_top_services">Топ послуги</string>
+    <string name="stats_empty">Немає даних за період</string>
+
+    <!-- Catalog -->
+    <string name="catalog_title">Каталог</string>
+    <string name="catalog_tab_services">Послуги</string>
+    <string name="catalog_tab_employees">Майстри</string>
+    <string name="catalog_tab_shifts">Графік</string>
+    <string name="catalog_loading">Завантаження…</string>
+    <string name="catalog_empty">Порожньо</string>
+
+    <!-- Common -->
+    <string name="logout">Вийти</string>
+    <string name="error_generic">Помилка: %1$s</string>
+    <string name="retry">Повторити</string>
+    <string name="loading">Завантаження…</string>
+    <string name="pull_to_refresh">Потягніть для оновлення</string>
+</resources>

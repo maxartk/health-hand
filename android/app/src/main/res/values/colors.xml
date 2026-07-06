@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hh_primary">#FF6B8E3D</color>
+    <color name="hh_secondary">#FFB5832D</color>
+    <color name="hh_tertiary">#FF7B5E3A</color>
+    <color name="hh_background">#FFFDFBF6</color>
+    <color name="hh_surface">#FFFFFFFF</color>
+    <color name="hh_on_primary">#FFFFFFFF</color>
+    <color name="hh_on_secondary">#FFFFFFFF</color>
+</resources>

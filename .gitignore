@@ -29,3 +29,11 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+# Android build artifacts
+.gradle/
+android/.gradle/
+android/app/build/
+android/local.properties
+*.apk
+*.orig
+*.rej
