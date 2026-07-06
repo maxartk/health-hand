@@ -116,7 +116,7 @@ fun CatalogScreen() {
                     subtitle = "Панель керування сайтом: тут ви редагуєте ціни, послуги та майстрів, що клієнти бачать на health-hand сайті.",
                     trailing = {
                         IconButton(onClick = { vm.load(refresh = true) }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Оновити", tint = Color.White)
+                            Icon(Icons.Filled.Refresh, contentDescription = "Оновити", tint = MaterialTheme.colorScheme.onBackground)
                         }
                     }
                 )

@@ -1,27 +1,10 @@
 package com.healthhand.admin.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val LightColors = lightColorScheme(
-    primary = Primary,
-    onPrimary = OnPrimary,
-    secondary = Secondary,
-    onSecondary = OnSecondary,
-    tertiary = Tertiary,
-    background = Background,
-    onBackground = OnBackground,
-    surface = Surface,
-    onSurface = OnSurface,
-    surfaceVariant = SurfaceAlt,
-    onSurfaceVariant = OnSurfaceVariant,
-    error = ErrorRed,
-)
-
-private val DarkColors = darkColorScheme(
+private val AppColors = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
     secondary = Secondary,
@@ -38,12 +21,11 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun HealthHandTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) DarkColors else LightColors
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = AppColors,
         typography = AppTypography,
         content = content,
     )

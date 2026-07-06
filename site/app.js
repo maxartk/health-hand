@@ -113,6 +113,22 @@ function renderServiceOptions(form) {
   }
 }
 
+function renderSiteServices() {
+  const grid = $('#siteServiceGrid');
+  if (!grid || !bookingCatalog.services.length) return;
+  grid.innerHTML = bookingCatalog.services.map((service, index) => {
+    const delay = index % 3 === 1 ? ' delay-1' : index % 3 === 2 ? ' delay-2' : '';
+    const duration = service.duration_minutes ? `${service.duration_minutes} хв` : 'тривалість уточнимо';
+    const price = formatPrice(service.price);
+    return `<article class="service reveal${delay}">
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <h3>${esc(service.name)}</h3>
+      <p>${esc(service.description || 'Опис послуги можна змінити в Android-додатку власниці.')}</p>
+      <strong>${esc(price)} · ${esc(duration)}</strong>
+    </article>`;
+  }).join('');
+}
+
 function selectedServiceId(form) {
   const option = form?.elements.service?.selectedOptions?.[0];
   return option?.dataset?.serviceId || '';
@@ -126,6 +142,7 @@ async function loadBookingServices() {
     setSelectLoading(serviceSelect, 'Завантажую послуги…');
     const data = await apiFetch(`${API_V2}/services`);
     bookingCatalog.services = data.services || [];
+    renderSiteServices();
     renderServiceOptions(form);
   } catch (error) {
     console.warn('Services API failed', error);

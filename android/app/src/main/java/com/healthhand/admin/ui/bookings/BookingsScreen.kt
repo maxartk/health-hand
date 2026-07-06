@@ -80,7 +80,7 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
                 subtitle = "Потік заявок, контактів і підтверджень в одному місці.",
                 trailing = {
                     IconButton(onClick = { vm.load(refresh = true) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.bookings_retry), tint = Color.White)
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.bookings_retry), tint = MaterialTheme.colorScheme.onBackground)
                     }
                 }
             )

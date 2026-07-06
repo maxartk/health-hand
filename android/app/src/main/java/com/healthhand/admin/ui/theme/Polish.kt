@@ -32,9 +32,9 @@ fun PremiumBackdrop(
 ) {
     val bg = Brush.linearGradient(
         colors = listOf(
+            Color(0xFFFFFCF7),
             Background,
-            Color(0xFF0E1318),
-            Color(0xFF0A0D10),
+            Color(0xFFF3E7D5),
         ),
         start = Offset.Zero,
         end = Offset(1600f, 1600f),
@@ -51,7 +51,7 @@ fun PremiumBackdrop(
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Primary.copy(alpha = 0.10f),
+                            Primary.copy(alpha = 0.14f),
                             Color.Transparent,
                         ),
                         center = Offset(120f, 120f),
@@ -65,7 +65,7 @@ fun PremiumBackdrop(
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Tertiary.copy(alpha = 0.08f),
+                            Tertiary.copy(alpha = 0.10f),
                             Color.Transparent,
                         ),
                         center = Offset(1200f, 320f),
