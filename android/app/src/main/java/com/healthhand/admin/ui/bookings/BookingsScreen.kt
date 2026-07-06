@@ -288,16 +288,23 @@ fun BookingCard(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { showStatusDialog = true }) {
                     Text(stringResource(R.string.bookings_change_status))
                 }
                 OutlinedButton(onClick = { showApptDialog = true }) {
                     Text(stringResource(R.string.bookings_assign_appt))
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Видалити")
-                }
+            }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onDelete,
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Видалити заявку")
             }
         }
     }
