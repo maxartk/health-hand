@@ -305,6 +305,7 @@ def init_db():
             created_at INTEGER NOT NULL
         )''')
         ensure_column(c, 'appointments', 'employee_id', 'INTEGER REFERENCES employees(id) ON DELETE SET NULL')
+        ensure_column(c, 'employees', 'show_on_site', 'INTEGER DEFAULT 1')
         c.execute('''CREATE TABLE IF NOT EXISTS password_resets (
             token_hash TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -337,6 +338,7 @@ def init_db():
             phone TEXT DEFAULT '',
             is_active INTEGER DEFAULT 1,
             sort_order INTEGER DEFAULT 0,
+            show_on_site INTEGER DEFAULT 1,
             created_at INTEGER NOT NULL
         )""")
         c.execute("""CREATE TABLE IF NOT EXISTS employee_services (
@@ -612,7 +614,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {'ok': True, 'services': rows})
         if path == '/api/v2/employees':
             with db() as c:
-                rows = [dict(x) for x in c.execute('SELECT * FROM employees WHERE is_active=1 ORDER BY sort_order,id')]
+                rows = [dict(x) for x in c.execute('SELECT * FROM employees WHERE is_active=1 AND show_on_site=1 ORDER BY sort_order,id')]
             return self.send_json(200, {'ok': True, 'employees': rows})
         if path == '/api/v2/availability':
             q = parse_qs(urlparse(self.path).query)
@@ -648,6 +650,172 @@ class Handler(BaseHTTPRequestHandler):
             with db() as c:
                 summary = event_summary(c, since)
             return self.send_json(200, {'ok': True, 'days': days, **summary})
+        return self.send_json(404, {'ok': False, 'error': 'not_found'})
+
+    def do_PUT(self):
+        path = urlparse(self.path).path
+        try:
+            data = self.read_json()
+        except Exception:
+            return self.send_json(400, {'ok': False, 'error': 'bad_json'})
+
+        if path == '/api/admin/v2/services':
+            if not require_admin(self):
+                return
+            sid = int(data.get('id') or 0)
+            if not sid:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM services WHERE id=?', (sid,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                c.execute('''UPDATE services SET name=?,description=?,duration_minutes=?,price=?,category_id=?,sort_order=?,is_active=? WHERE id=?''',
+                    (data.get('name', row['name']).strip() if data.get('name') else row['name'],
+                     data.get('description', row['description']),
+                     int(data.get('duration_minutes') or row['duration_minutes']),
+                     int(data.get('price') or row['price']),
+                     data.get('category_id', row['category_id']),
+                     int(data.get('sort_order') or row['sort_order']),
+                     1 if data.get('is_active', bool(row['is_active'])) else 0,
+                     sid))
+                row = c.execute('SELECT * FROM services WHERE id=?', (sid,)).fetchone()
+            return self.send_json(200, {'ok': True, 'service': dict(row)})
+
+        if path == '/api/admin/v2/employees':
+            if not require_admin(self):
+                return
+            emp_id = int(data.get('id') or 0)
+            if not emp_id:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM employees WHERE id=?', (emp_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                c.execute('''UPDATE employees SET name=?,role=?,bio=?,phone=?,is_active=?,sort_order=?,show_on_site=? WHERE id=?''',
+                    (data.get('name', row['name']).strip() if data.get('name') else row['name'],
+                     data.get('role', row['role']),
+                     data.get('bio', row['bio']),
+                     data.get('phone', row['phone']),
+                     1 if data.get('is_active', bool(row['is_active'])) else 0,
+                     int(data.get('sort_order') or row['sort_order']),
+                     1 if data.get('show_on_site', bool(row['show_on_site']) if 'show_on_site' in dict(row) else True) else 0,
+                     emp_id))
+                if 'service_ids' in data:
+                    c.execute('DELETE FROM employee_services WHERE employee_id=?', (emp_id,))
+                    for sid in data.get('service_ids') or []:
+                        c.execute('INSERT OR IGNORE INTO employee_services(employee_id,service_id,created_at) VALUES(?,?,?)', (emp_id, int(sid), now_ts()))
+                row = c.execute('SELECT * FROM employees WHERE id=?', (emp_id,)).fetchone()
+            return self.send_json(200, {'ok': True, 'employee': dict(row)})
+
+        if path == '/api/admin/v2/shifts':
+            if not require_admin(self):
+                return
+            shift_id = int(data.get('id') or 0)
+            if not shift_id:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM employee_shifts WHERE id=?', (shift_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                weekday = int(data.get('weekday', row['weekday']))
+                start = data.get('start_time', row['start_time'])
+                end = data.get('end_time', row['end_time'])
+                if weekday < 0 or weekday > 6 or not re.match(r'^\d{2}:\d{2}$', start) or not re.match(r'^\d{2}:\d{2}$', end):
+                    return self.send_json(400, {'ok': False, 'error': 'invalid weekday or time'})
+                c.execute('''UPDATE employee_shifts SET employee_id=?,weekday=?,start_time=?,end_time=?,is_active=? WHERE id=?''',
+                    (int(data.get('employee_id') or row['employee_id']), weekday, start, end,
+                     1 if data.get('is_active', bool(row['is_active'])) else 0, shift_id))
+                row = c.execute('SELECT * FROM employee_shifts WHERE id=?', (shift_id,)).fetchone()
+            return self.send_json(200, {'ok': True, 'shift': dict(row)})
+
+        return self.send_json(404, {'ok': False, 'error': 'not_found'})
+
+    def do_DELETE(self):
+        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+
+        # DELETE /api/admin/bookings?id=X  or  body {id}
+        if path == '/api/admin/bookings':
+            if not require_admin(self):
+                return
+            try:
+                data = self.read_json() if self.headers.get('Content-Length') else {}
+            except Exception:
+                data = {}
+            booking_id = int(data.get('id') or query.get('id', [0])[0])
+            if not booking_id:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM bookings WHERE id=?', (booking_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                c.execute('DELETE FROM appointments WHERE booking_id=?', (booking_id,))
+                c.execute('DELETE FROM bookings WHERE id=?', (booking_id,))
+            return self.send_json(200, {'ok': True, 'deleted': booking_id})
+
+        if path == '/api/admin/v2/services':
+            if not require_admin(self):
+                return
+            try:
+                data = self.read_json() if self.headers.get('Content-Length') else {}
+            except Exception:
+                data = {}
+            sid = int(data.get('id') or query.get('id', [0])[0])
+            hard = data.get('hard', False)
+            if not sid:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM services WHERE id=?', (sid,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                if hard:
+                    c.execute('DELETE FROM employee_services WHERE service_id=?', (sid,))
+                    c.execute('DELETE FROM services WHERE id=?', (sid,))
+                else:
+                    c.execute('UPDATE services SET is_active=0 WHERE id=?', (sid,))
+            return self.send_json(200, {'ok': True, 'deleted': sid, 'hard': bool(hard)})
+
+        if path == '/api/admin/v2/employees':
+            if not require_admin(self):
+                return
+            try:
+                data = self.read_json() if self.headers.get('Content-Length') else {}
+            except Exception:
+                data = {}
+            emp_id = int(data.get('id') or query.get('id', [0])[0])
+            hard = data.get('hard', False)
+            if not emp_id:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM employees WHERE id=?', (emp_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                if hard:
+                    c.execute('DELETE FROM employee_services WHERE employee_id=?', (emp_id,))
+                    c.execute('DELETE FROM employee_shifts WHERE employee_id=?', (emp_id,))
+                    c.execute('DELETE FROM employees WHERE id=?', (emp_id,))
+                else:
+                    c.execute('UPDATE employees SET is_active=0 WHERE id=?', (emp_id,))
+            return self.send_json(200, {'ok': True, 'deleted': emp_id, 'hard': bool(hard)})
+
+        if path == '/api/admin/v2/shifts':
+            if not require_admin(self):
+                return
+            try:
+                data = self.read_json() if self.headers.get('Content-Length') else {}
+            except Exception:
+                data = {}
+            shift_id = int(data.get('id') or query.get('id', [0])[0])
+            if not shift_id:
+                return self.send_json(400, {'ok': False, 'error': 'id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM employee_shifts WHERE id=?', (shift_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                c.execute('DELETE FROM employee_shifts WHERE id=?', (shift_id,))
+            return self.send_json(200, {'ok': True, 'deleted': shift_id})
+
         return self.send_json(404, {'ok': False, 'error': 'not_found'})
 
     def do_POST(self):
@@ -811,9 +979,9 @@ class Handler(BaseHTTPRequestHandler):
             if len(name) < 2:
                 return self.send_json(400, {'ok': False, 'error': 'name required'})
             with db() as c:
-                cur = c.execute("""INSERT INTO employees(name,role,bio,phone,is_active,sort_order,created_at)
-                                   VALUES(?,?,?,?,?,?,?)""",
-                    (name, data.get('role','massage_therapist'), data.get('bio',''), data.get('phone',''), 1 if data.get('is_active', True) else 0, int(data.get('sort_order') or 0), now_ts()))
+                cur = c.execute("""INSERT INTO employees(name,role,bio,phone,is_active,sort_order,show_on_site,created_at)
+                                   VALUES(?,?,?,?,?,?,?,?)""",
+                    (name, data.get('role','massage_therapist'), data.get('bio',''), data.get('phone',''), 1 if data.get('is_active', True) else 0, int(data.get('sort_order') or 0), 1 if data.get('show_on_site', True) else 0, now_ts()))
                 employee_id = cur.lastrowid
                 for sid in data.get('service_ids') or []:
                     c.execute('INSERT OR IGNORE INTO employee_services(employee_id,service_id,created_at) VALUES(?,?,?)', (employee_id, int(sid), now_ts()))

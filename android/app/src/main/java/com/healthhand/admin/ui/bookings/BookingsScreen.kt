@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -55,6 +56,7 @@ import java.util.Locale
 fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
     val vm: BookingsViewModel = viewModel()
     val state by vm.state.collectAsState()
+    var pendingDelete by remember { mutableStateOf<Booking?>(null) }
 
     Column(
         modifier = Modifier
@@ -149,6 +151,24 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
             return@Column
         }
 
+        if (pendingDelete != null) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("Видалити заявку №${pendingDelete?.id}?") },
+                text = { Text("Цю дію неможливо скасувати.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        val del = pendingDelete
+                        pendingDelete = null
+                        if (del != null) vm.deleteBooking(del.id) {}
+                    }) { Text("Видалити", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { pendingDelete = null }) { Text("Скасувати") }
+                }
+            )
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(12.dp),
@@ -163,7 +183,8 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
                     },
                     onAssign = { startAt, endAt, empId ->
                         vm.assignAppointment(booking.id, startAt, endAt, empId) {}
-                    }
+                    },
+                    onDelete = { pendingDelete = booking }
                 )
             }
         }
@@ -190,7 +211,8 @@ fun BookingCard(
     booking: Booking,
     onRefresh: () -> Unit,
     onChangeStatus: (String, String?) -> Unit,
-    onAssign: (String, String?, Int?) -> Unit
+    onAssign: (String, String?, Int?) -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     var showStatusDialog by remember { mutableStateOf(false) }
     var showApptDialog by remember { mutableStateOf(false) }
@@ -272,6 +294,9 @@ fun BookingCard(
                 }
                 OutlinedButton(onClick = { showApptDialog = true }) {
                     Text(stringResource(R.string.bookings_assign_appt))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Видалити")
                 }
             }
         }

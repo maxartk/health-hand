@@ -62,6 +62,58 @@
     <string name="catalog_loading">Завантаження…</string>
     <string name="catalog_empty">Порожньо</string>
 
+    <!-- CRUD actions -->
+    <string name="action_edit">Редагувати</string>
+    <string name="action_delete">Видалити</string>
+    <string name="action_create">Створити</string>
+    <string name="action_save">Зберегти</string>
+    <string name="action_cancel">Скасувати</string>
+    <string name="action_confirm">Підтвердити</string>
+    <string name="confirm_delete">Видалити цей запис?</string>
+    <string name="confirm_delete_booking">Видалити заявку №%1$d?</string>
+    <string name="delete_success">Видалено</string>
+    <string name="delete_failed">Помилка видалення: %1$s</string>
+    <string name="save_failed">Помилка збереження: %1$s</string>
+
+    <!-- Service fields -->
+    <string name="service_new">Нова послуга</string>
+    <string name="service_edit">Редагування послуги</string>
+    <string name="field_name">Назва</string>
+    <string name="field_description">Опис</string>
+    <string name="field_duration">Тривалість, хв</string>
+    <string name="field_price">Ціна, грн</string>
+    <string name="field_category">Категорія</string>
+    <string name="field_sort_order">Порядок</string>
+    <string name="field_is_active">Активна</string>
+    <string name="field_no_category">Без категорії</string>
+
+    <!-- Employee fields -->
+    <string name="employee_new">Новий майстер</string>
+    <string name="employee_edit">Редагування майстра</string>
+    <string name="field_role">Роль</string>
+    <string name="field_bio">Про майстра</string>
+    <string name="field_phone">Телефон</string>
+    <string name="field_show_on_site">Показувати на сайті</string>
+    <string name="employee_hidden">Прихований на сайті</string>
+    <string name="employee_visible">Видимий на сайті</string>
+
+    <!-- Shift fields -->
+    <string name="shift_new">Нова зміна</string>
+    <string name="shift_edit">Редагування зміни</string>
+    <string name="field_employee">Майстер</string>
+    <string name="field_weekday">День тижня</string>
+    <string name="field_start_time">Початок (ГГ:ХХ)</string>
+    <string name="field_end_time">Кінець (ГГ:ХХ)</string>
+    <string name="weekday_0">Неділя</string>
+    <string name="weekday_1">Понеділок</string>
+    <string name="weekday_2">Вівторок</string>
+    <string name="weekday_3">Середа</string>
+    <string name="weekday_4">Четвер</string>
+    <string name="weekday_5">П\'ятниця</string>
+    <string name="weekday_6">Субота</string>
+
+    <string name="fab_new">Новий</string>
+
     <!-- Common -->
     <string name="logout">Вийти</string>
     <string name="error_generic">Помилка: %1$s</string>

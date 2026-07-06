@@ -133,6 +133,7 @@ data class Employee(
     val phone: String = "",
     val is_active: Int = 1,
     val sort_order: Int = 0,
+    val show_on_site: Int = 1,
     val created_at: Int = 0,
 )
 
@@ -162,4 +163,76 @@ data class EventsSummaryResponse(
 data class TopService(
     val service: String = "",
     val count: Int = 0,
+)
+
+/* ----- Service CRUD ----- */
+
+@JsonClass(generateAdapter = true)
+data class ServiceRequest(
+    @Json(name = "id") val id: Int? = null,
+    @Json(name = "name") val name: String,
+    @Json(name = "description") val description: String = "",
+    @Json(name = "duration_minutes") val duration_minutes: Int = 60,
+    @Json(name = "price") val price: Int = 0,
+    @Json(name = "category_id") val category_id: Int? = null,
+    @Json(name = "sort_order") val sort_order: Int = 0,
+    @Json(name = "is_active") val is_active: Int = 1,
+)
+
+@JsonClass(generateAdapter = true)
+data class ServiceResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val service: Service? = null,
+)
+
+/* ----- Employee CRUD ----- */
+
+@JsonClass(generateAdapter = true)
+data class EmployeeRequest(
+    @Json(name = "id") val id: Int? = null,
+    @Json(name = "name") val name: String,
+    @Json(name = "role") val role: String = "massage_therapist",
+    @Json(name = "bio") val bio: String = "",
+    @Json(name = "phone") val phone: String = "",
+    @Json(name = "is_active") val is_active: Int = 1,
+    @Json(name = "sort_order") val sort_order: Int = 0,
+    @Json(name = "show_on_site") val show_on_site: Int = 1,
+    @Json(name = "service_ids") val service_ids: List<Int>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class EmployeeResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val employee: Employee? = null,
+)
+
+/* ----- Shift CRUD ----- */
+
+@JsonClass(generateAdapter = true)
+data class ShiftRequest(
+    @Json(name = "id") val id: Int? = null,
+    @Json(name = "employee_id") val employee_id: Int,
+    @Json(name = "weekday") val weekday: Int,
+    @Json(name = "start_time") val start_time: String,
+    @Json(name = "end_time") val end_time: String,
+    @Json(name = "is_active") val is_active: Int = 1,
+)
+
+@JsonClass(generateAdapter = true)
+data class ShiftResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val shift: Shift? = null,
+)
+
+/* ----- Generic delete response ----- */
+
+@JsonClass(generateAdapter = true)
+data class DeleteResponse(
+    val ok: Boolean = false,
+    val deleted: Int? = null,
+    val hard: Boolean? = null,
+    val error: String? = null,
 )

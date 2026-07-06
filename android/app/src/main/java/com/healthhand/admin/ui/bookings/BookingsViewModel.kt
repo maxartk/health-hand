@@ -122,5 +122,22 @@ class BookingsViewModel : ViewModel() {
                 onDone()
             }
         }
+        }
+
+    fun deleteBooking(bookingId: Int, onDone: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = ApiClient.api().deleteBooking(bookingId)
+                if (resp.ok) {
+                    _state.update { it.copy(bookings = it.bookings.filter { b -> b.id != bookingId }) }
+                } else {
+                    _state.update { it.copy(error = resp.error ?: "Помилка видалення") }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.message ?: "Помилка") }
+            } finally {
+                onDone()
+            }
+        }
     }
 }
