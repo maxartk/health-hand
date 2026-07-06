@@ -1,0 +1,20 @@
+[Unit]
+Description=Health Hand client portal API
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/health-hand-portal.env
+Environment=HH_COOKIE_SECURE=0
+Environment=HH_DB=/opt/health-hand/source/portal.db
+Environment=HH_PUBLIC_BASE_URL=http://healthhand.92.4.216.165.nip.io
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/health-hand/source
+ExecStart=/usr/bin/python3 /opt/health-hand/source/portal_api.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

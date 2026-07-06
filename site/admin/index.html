@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Health Hand Admin</title>
+  <link rel="stylesheet" href="/styles.css?v=20260629-loop-events" />
+  <style>
+    body { background: #f7f2ea; color: #101826; }
+    .admin-shell { width: min(1180px, calc(100% - 32px)); margin: 32px auto; display: grid; gap: 20px; }
+    .admin-card { background: #fff; border: 1px solid rgba(16,24,38,.12); border-radius: 24px; padding: 22px; box-shadow: 0 18px 50px rgba(16,24,38,.08); }
+    .admin-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric { background: rgba(215,177,110,.12); border-radius: 18px; padding: 16px; }
+    .metric strong { display:block; font-size: 28px; }
+    .admin-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+    .booking-row { display:grid; grid-template-columns: 1.3fr 1fr 1fr 1.4fr; gap:12px; padding:16px 0; border-top:1px solid rgba(16,24,38,.1); }
+    .booking-row small { color: rgba(16,24,38,.62); display:block; margin-top:4px; }
+    .booking-row textarea { min-height: 72px; }
+    .admin-status { min-height: 24px; font-weight:800; }
+    @media (max-width: 800px) { .admin-grid, .booking-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="admin-shell">
+    <section class="admin-card">
+      <p class="eyebrow dark">Health Hand</p>
+      <h1>Admin loop dashboard</h1>
+      <p>Тут видно заявки, funnel-сигнали і короткий feedback loop для кожного запису.</p>
+      <div class="admin-actions">
+        <label>Admin token<input id="adminToken" type="password" autocomplete="off" placeholder="Bearer token" /></label>
+        <button class="btn btn-primary" id="saveToken" type="button">Зберегти token</button>
+        <button class="btn btn-soft" id="refreshAdmin" type="button">Оновити</button>
+      </div>
+      <p class="admin-status" id="adminStatus" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="admin-card">
+      <h2>Funnel за 7 днів</h2>
+      <div class="admin-grid" id="funnelMetrics"></div>
+    </section>
+
+    <section class="admin-card">
+      <h2>Каталог</h2>
+      <div class="admin-grid" id="catalogMetrics"></div>
+    </section>
+
+    <section class="admin-card">
+      <h2>Заявки і admin feedback</h2>
+      <p>Для кожної заявки фіксуй причину: чому підтвердили / скасували / клієнт не прийшов. Це головний продуктовий сигнал.</p>
+      <div id="bookingRows"></div>
+    </section>
+  </main>
+  <script src="/admin/admin.js?v=20260629-loop-events"></script>
+</body>
+</html>

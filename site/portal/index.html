@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Особистий кабінет — Health Hand</title>
+  <meta name="description" content="Особистий кабінет Health Hand: реєстрація, вхід, історія записів, профіль клієнта та повторний запис." />
+  <meta name="theme-color" content="#101826" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <a href="#main" class="skip-link">Перейти до основного вмісту</a>
+
+  <header class="site-header scrolled" id="top">
+    <a href="/" class="brand" aria-label="Health Hand головна">
+      <span class="brand-mark">✦</span>
+      <span>Health Hand</span>
+    </a>
+    <button class="nav-toggle" aria-label="Відкрити меню" aria-expanded="false" aria-controls="siteNav">☰</button>
+    <nav class="site-nav" id="siteNav" aria-label="Головна навігація">
+      <a href="/#ritualy">Напрямки</a>
+      <a href="/#sluzby">Послуги</a>
+      <a href="/#balicky">Абонементи</a>
+      <a href="/#recenze">Відгуки</a>
+      <a href="/#rezervace" class="nav-cta">Записатися</a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="client-portal section-light portal-page" id="cabinet" aria-labelledby="portal-title">
+      <div class="container portal-grid">
+        <div class="portal-copy reveal">
+          <p class="eyebrow dark">Особистий кабінет</p>
+          <h2 id="portal-title">Реєстрація, історія записів і персональна комунікація.</h2>
+          <p class="body-lg">Клієнт створює акаунт, входить за паролем, бачить свої заявки, обирає WhatsApp/Viber/Telegram і швидко повторює запис.</p>
+          <div class="portal-benefits">
+            <span>реєстрація та вхід</span>
+            <span>серверна історія заявок</span>
+            <span>нагадування та follow-up</span>
+          </div>
+        </div>
+
+        <div class="portal-card reveal delay-1" aria-live="polite">
+          <div class="portal-auth" id="portalAuth">
+            <div class="portal-tabs" role="tablist" aria-label="Вхід у кабінет">
+              <button class="portal-tab active" data-auth-tab="register" type="button" role="tab" aria-selected="true">Реєстрація</button>
+              <button class="portal-tab" data-auth-tab="login" type="button" role="tab" aria-selected="false">Вхід</button>
+            </div>
+            <form id="registerForm" class="profile-form auth-panel active" data-auth-panel="register" autocomplete="off">
+              <label>Ім’я<input name="name" autocomplete="name" required placeholder="Олена" /></label>
+              <label>Телефон або email<input name="contact" autocomplete="username" required placeholder="+380 ... / email" /></label>
+              <label>Пароль<input name="password" type="password" autocomplete="new-password" required minlength="8" placeholder="Мінімум 8 символів" /></label>
+              <label>Основний канал<select name="channel" required><option>WhatsApp</option><option>Viber</option><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
+              <label class="consent-line"><input name="reminders" type="checkbox" checked /> <span>Надсилати нагадування й рекомендації після процедури.</span></label>
+              <button class="btn btn-primary full" type="submit">Зареєструватися</button>
+            </form>
+            <form id="loginForm" class="profile-form auth-panel" data-auth-panel="login" autocomplete="off">
+              <label>Телефон або email<input name="contact" autocomplete="username" required /></label>
+              <label>Пароль<input name="password" type="password" autocomplete="current-password" required /></label>
+              <button class="btn btn-primary full" type="submit">Увійти</button>
+            </form>
+            <p class="form-status" id="authStatus" role="status" aria-live="polite"></p>
+          </div>
+
+          <div class="portal-account" id="portalAccount" hidden>
+            <div class="account-head">
+              <div class="account-info"><span>Ви увійшли як</span><strong id="accountName">—</strong></div>
+              <button class="btn btn-soft" id="logoutBtn" type="button">Вийти</button>
+            </div>
+            <div class="portal-tabs" role="tablist" aria-label="Особистий кабінет">
+              <button class="portal-tab active" data-portal-tab="dashboard" type="button" role="tab" aria-selected="true">Загальна</button>
+              <button class="portal-tab" data-portal-tab="history" type="button" role="tab" aria-selected="false">Мої записи</button>
+              <button class="portal-tab" data-portal-tab="profile" type="button" role="tab" aria-selected="false">Профіль</button>
+              <button class="portal-tab" data-portal-tab="care" type="button" role="tab" aria-selected="false">План догляду</button>
+            </div>
+
+            <div class="portal-panel active" data-portal-panel="dashboard">
+              <div class="dashboard-welcome" id="dashboardWelcome"></div>
+              <div class="portal-summary" id="clientSummary"></div>
+              <div class="dashboard-actions">
+                <a href="/#rezervace" class="btn btn-primary">Записатися на масаж</a>
+                <button class="btn btn-soft" id="repeatLastBooking" type="button">Повторити останній запис</button>
+              </div>
+              <div class="next-visit" id="nextVisit"></div>
+            </div>
+
+            <div class="portal-panel" data-portal-panel="history">
+              <div class="booking-list" id="bookingList"></div>
+            </div>
+
+            <div class="portal-panel" data-portal-panel="profile">
+              <form id="clientProfileForm" class="profile-form">
+                <div class="form-row"><label>Ім’я<input name="name" autocomplete="name" required /></label><label>Дата народження<input name="birthday" type="date" /></label></div>
+                <label>Основний канал<select name="channel" required><option>WhatsApp</option><option>Viber</option><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
+                <label>Що важливо знати майстру<textarea name="notes" rows="3" placeholder="Біль у спині, шия, травми, протипоказання..."></textarea></label>
+                <label class="consent-line"><input name="reminders" type="checkbox" checked /> <span>Надсилати нагадування про візит і рекомендації після процедури.</span></label>
+                <button class="btn btn-primary full" type="submit">Оновити профіль</button>
+                <p class="form-status" id="profileStatus" role="status" aria-live="polite"></p>
+              </form>
+            </div>
+
+            <div class="portal-panel" data-portal-panel="care">
+              <div class="care-plan" id="carePlan">
+                <div class="care-step">
+                  <div class="care-step__marker" aria-hidden="true">1</div>
+                  <div class="care-step__content">
+                    <strong>Перед процедурою</strong>
+                    <p>Не плануйте важке тренування, пийте воду, повідомте про гострий біль, температуру або травми.</p>
+                  </div>
+                </div>
+                <div class="care-step">
+                  <div class="care-step__marker" aria-hidden="true">2</div>
+                  <div class="care-step__content">
+                    <strong>Після процедури</strong>
+                    <p>Дайте тілу відпочити, пийте воду, уникайте різкого навантаження 12–24 години.</p>
+                  </div>
+                </div>
+                <div class="care-step">
+                  <div class="care-step__marker" aria-hidden="true">3</div>
+                  <div class="care-step__content">
+                    <strong>Курс для результату</strong>
+                    <p>Для хронічного напруження краще працює серія сеансів. Кабінет підкаже повторний запис.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div><strong>Health Hand</strong><p>Особистий кабінет клієнта.</p></div>
+      <div><span>Навігація</span><a href="/">На головну</a><a href="/#rezervace">Записатися</a></div>
+      <div><span>Контакт</span><p>Умань, Україна</p></div>
+    </div>
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>

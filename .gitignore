@@ -1,0 +1,31 @@
+# Secrets & env
+*.env
+.env
+**/*.env
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+portal.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Backups & temporary exports
+*_backup_*
+/assets_original_backup_*/
+/assets_real_photo_backup_*/
+/assets_before_real_*/
+/n8n-agent-*/
+/automation-review-*/
+
+# Raw assets
+**/raw_downloads/
+**/PHOTO_SOURCES.txt
+
+# OS
+.DS_Store
+Thumbs.db
