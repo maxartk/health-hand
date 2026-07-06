@@ -1,6 +1,5 @@
 package com.healthhand.admin
 
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -12,16 +11,18 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -46,9 +47,9 @@ private data class NavItem(
 )
 
 private val NAV_ITEMS = listOf(
+    NavItem(Routes.CATALOG, R.string.nav_catalog, Icons.Filled.Folder),
     NavItem(Routes.BOOKINGS, R.string.nav_bookings, Icons.Filled.Book),
     NavItem(Routes.STATS, R.string.nav_stats, Icons.Filled.BarChart),
-    NavItem(Routes.CATALOG, R.string.nav_catalog, Icons.Filled.Folder),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +60,7 @@ fun AppNavHost() {
     val tokenStore = remember { ApiClient.tokenStore() }
     val hasToken = remember { tokenStore.getToken() != null }
 
-    val startDest = if (hasToken) Routes.BOOKINGS else Routes.LOGIN
+    val startDest = if (hasToken) Routes.CATALOG else Routes.LOGIN
 
     LaunchedEffect(forceLogout) {
         if (forceLogout) {
@@ -76,6 +77,7 @@ fun AppNavHost() {
     val showBottomBar = currentRoute in setOf(Routes.BOOKINGS, Routes.STATS, Routes.CATALOG)
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = {
@@ -90,7 +92,7 @@ fun AppNavHost() {
                 },
                 actions = {
                     if (showBottomBar) {
-                        androidx.compose.material3.TextButton(onClick = {
+                        TextButton(onClick = {
                             tokenStore.clearToken()
                             navController.navigate(Routes.LOGIN) {
                                 popUpTo(navController.graph.id) { inclusive = true }
@@ -99,12 +101,21 @@ fun AppNavHost() {
                             Text(stringResource(R.string.logout))
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White,
+                ),
             )
         },
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = Color(0xFF11161C).copy(alpha = 0.92f),
+                    contentColor = Color.White,
+                ) {
                     NAV_ITEMS.forEach { item ->
                         NavigationBarItem(
                             selected = currentRoute == item.route,
@@ -132,7 +143,7 @@ fun AppNavHost() {
         ) {
             composable(Routes.LOGIN) {
                 LoginScreen(onLoggedIn = {
-                    navController.navigate(Routes.BOOKINGS) {
+                    navController.navigate(Routes.CATALOG) {
                         popUpTo(navController.graph.id) { inclusive = true }
                     }
                 })

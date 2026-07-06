@@ -99,6 +99,13 @@ data class CatalogResponse(
     val services: List<Service> = emptyList(),
     val employees: List<Employee> = emptyList(),
     val shifts: List<Shift> = emptyList(),
+    val employee_services: List<EmployeeServiceLink> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class EmployeeServiceLink(
+    val employee_id: Int = 0,
+    val service_id: Int = 0,
 )
 
 @JsonClass(generateAdapter = true)
@@ -198,7 +205,7 @@ data class EmployeeRequest(
     @Json(name = "is_active") val is_active: Int = 1,
     @Json(name = "sort_order") val sort_order: Int = 0,
     @Json(name = "show_on_site") val show_on_site: Int = 1,
-    @Json(name = "service_ids") val service_ids: List<Int>? = null,
+    @Json(name = "service_ids") val service_ids: List<Int> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)

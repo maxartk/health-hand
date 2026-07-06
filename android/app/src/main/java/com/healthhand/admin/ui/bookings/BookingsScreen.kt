@@ -1,5 +1,6 @@
 package com.healthhand.admin.ui.bookings
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,26 +13,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,149 +39,132 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.healthhand.admin.R
 import com.healthhand.admin.data.models.Booking
+import com.healthhand.admin.ui.theme.EmptyStateCard
+import com.healthhand.admin.ui.theme.MetricCard
+import com.healthhand.admin.ui.theme.PremiumBackdrop
+import com.healthhand.admin.ui.theme.ScreenHeader
+import com.healthhand.admin.ui.theme.SectionCard
+import com.healthhand.admin.ui.theme.StatusBadge
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
     val vm: BookingsViewModel = viewModel()
     val state by vm.state.collectAsState()
     var pendingDelete by remember { mutableStateOf<Booking?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-    ) {
-        // Filter chips
-        Row(
+    val visible = state.bookings
+    val newCount = visible.count { it.status == "new" }
+    val confirmedCount = visible.count { it.status == "confirmed" }
+    val completedCount = visible.count { it.status == "completed" }
+    val actionCount = visible.count { it.status == "new" || it.status == "contacted" }
+
+    PremiumBackdrop {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .fillMaxSize()
+                .padding(contentPadding)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            FilterChip(
-                selected = state.filter == BookingsStatus.ALL,
-                onClick = { vm.setFilter(BookingsStatus.ALL) },
-                label = { Text(stringResource(R.string.bookings_status_all)) }
+            ScreenHeader(
+                title = stringResource(R.string.bookings_title),
+                subtitle = "Потік заявок, контактів і підтверджень в одному місці.",
+                trailing = {
+                    IconButton(onClick = { vm.load(refresh = true) }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.bookings_retry), tint = Color.White)
+                    }
+                }
             )
-            FilterChip(
-                selected = state.filter == BookingsStatus.NEW,
-                onClick = { vm.setFilter(BookingsStatus.NEW) },
-                label = { Text(stringResource(R.string.bookings_status_new)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.CONTACTED,
-                onClick = { vm.setFilter(BookingsStatus.CONTACTED) },
-                label = { Text(stringResource(R.string.bookings_status_contacted)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.CONFIRMED,
-                onClick = { vm.setFilter(BookingsStatus.CONFIRMED) },
-                label = { Text(stringResource(R.string.bookings_status_confirmed)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.COMPLETED,
-                onClick = { vm.setFilter(BookingsStatus.COMPLETED) },
-                label = { Text(stringResource(R.string.bookings_status_completed)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.CANCELLED,
-                onClick = { vm.setFilter(BookingsStatus.CANCELLED) },
-                label = { Text(stringResource(R.string.bookings_status_cancelled)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.NO_SHOW,
-                onClick = { vm.setFilter(BookingsStatus.NO_SHOW) },
-                label = { Text(stringResource(R.string.bookings_status_no_show)) }
-            )
-            FilterChip(
-                selected = state.filter == BookingsStatus.FOLLOWUP_SENT,
-                onClick = { vm.setFilter(BookingsStatus.FOLLOWUP_SENT) },
-                label = { Text(stringResource(R.string.bookings_status_followup_sent)) }
-            )
-        }
 
-        if (state.loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                CircularProgressIndicator()
+                MetricCard(label = "Усього", value = visible.size.toString(), caption = "видимі заявки", modifier = Modifier.width(140.dp))
+                MetricCard(label = "Нові", value = newCount.toString(), caption = "очікують дії", modifier = Modifier.width(140.dp), accent = MaterialTheme.colorScheme.primary)
+                MetricCard(label = "Підтв.", value = confirmedCount.toString(), caption = "у роботі", modifier = Modifier.width(140.dp), accent = MaterialTheme.colorScheme.tertiary)
+                MetricCard(label = "Закриті", value = completedCount.toString(), caption = "завершені", modifier = Modifier.width(140.dp), accent = MaterialTheme.colorScheme.secondary)
             }
-            return@Column
-        }
 
-        state.error?.let { err ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = stringResource(R.string.bookings_error, err),
-                    color = MaterialTheme.colorScheme.error
+            SectionCard {
+                Text("Фільтр статусу", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    BookingFilterChip(state.filter == BookingsStatus.ALL, stringResource(R.string.bookings_status_all)) { vm.setFilter(BookingsStatus.ALL) }
+                    BookingFilterChip(state.filter == BookingsStatus.NEW, stringResource(R.string.bookings_status_new)) { vm.setFilter(BookingsStatus.NEW) }
+                    BookingFilterChip(state.filter == BookingsStatus.CONTACTED, stringResource(R.string.bookings_status_contacted)) { vm.setFilter(BookingsStatus.CONTACTED) }
+                    BookingFilterChip(state.filter == BookingsStatus.CONFIRMED, stringResource(R.string.bookings_status_confirmed)) { vm.setFilter(BookingsStatus.CONFIRMED) }
+                    BookingFilterChip(state.filter == BookingsStatus.COMPLETED, stringResource(R.string.bookings_status_completed)) { vm.setFilter(BookingsStatus.COMPLETED) }
+                    BookingFilterChip(state.filter == BookingsStatus.CANCELLED, stringResource(R.string.bookings_status_cancelled)) { vm.setFilter(BookingsStatus.CANCELLED) }
+                    BookingFilterChip(state.filter == BookingsStatus.NO_SHOW, stringResource(R.string.bookings_status_no_show)) { vm.setFilter(BookingsStatus.NO_SHOW) }
+                    BookingFilterChip(state.filter == BookingsStatus.FOLLOWUP_SENT, stringResource(R.string.bookings_status_followup_sent)) { vm.setFilter(BookingsStatus.FOLLOWUP_SENT) }
+                }
+            }
+
+            if (state.loading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+                return@Column
+            }
+
+            state.error?.let { err ->
+                SectionCard {
+                    Text(text = stringResource(R.string.bookings_error, err), color = MaterialTheme.colorScheme.error)
+                    Button(onClick = { vm.load() }) { Text(stringResource(R.string.bookings_retry)) }
+                }
+                return@Column
+            }
+
+            if (state.bookings.isEmpty()) {
+                EmptyStateCard(
+                    title = stringResource(R.string.bookings_empty),
+                    subtitle = "Коли з’являться заявки, вони тут будуть у вигляді чітких карток з діями і статусами.",
                 )
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { vm.load() }) {
-                    Text(stringResource(R.string.bookings_retry))
-                }
+                return@Column
             }
-            return@Column
-        }
 
-        if (state.bookings.isEmpty()) {
-            Box(
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(stringResource(R.string.bookings_empty))
-            }
-            return@Column
-        }
-
-        if (pendingDelete != null) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { pendingDelete = null },
-                title = { Text("Видалити заявку №${pendingDelete?.id}?") },
-                text = { Text("Цю дію неможливо скасувати.") },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = {
-                        val del = pendingDelete
-                        pendingDelete = null
-                        if (del != null) vm.deleteBooking(del.id) {}
-                    }) { Text("Видалити", color = MaterialTheme.colorScheme.error) }
-                },
-                dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { pendingDelete = null }) { Text("Скасувати") }
+                items(state.bookings) { booking ->
+                    BookingCard(
+                        booking = booking,
+                        onChangeStatus = { status, note -> vm.changeStatus(booking.id, status, note) {} },
+                        onAssign = { startAt, endAt, empId -> vm.assignAppointment(booking.id, startAt, endAt, empId) {} },
+                        onDelete = { pendingDelete = booking },
+                    )
                 }
-            )
-        }
+            }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(state.bookings) { booking ->
-                BookingCard(
-                    booking = booking,
-                    onRefresh = { vm.load(refresh = true) },
-                    onChangeStatus = { status, note ->
-                        vm.changeStatus(booking.id, status, note) {}
+            if (pendingDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingDelete = null },
+                    title = { Text("Видалити заявку №${pendingDelete?.id}?") },
+                    text = { Text("Цю дію неможливо скасувати.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val del = pendingDelete
+                            pendingDelete = null
+                            if (del != null) vm.deleteBooking(del.id) {}
+                        }) { Text("Видалити", color = MaterialTheme.colorScheme.error) }
                     },
-                    onAssign = { startAt, endAt, empId ->
-                        vm.assignAppointment(booking.id, startAt, endAt, empId) {}
-                    },
-                    onDelete = { pendingDelete = booking }
+                    dismissButton = {
+                        TextButton(onClick = { pendingDelete = null }) { Text("Скасувати") }
+                    }
                 )
             }
         }
@@ -192,120 +172,92 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
 }
 
 @Composable
-private fun BookingCardOld(
-    booking: Booking,
-    onChangeStatus: (String) -> Unit,
-    onAssign: (String) -> Unit
-) {
-    BookingCard(
-        booking = booking,
-        onRefresh = {},
-        onChangeStatus = { status, _ -> onChangeStatus(status) },
-        onAssign = { startAt, _, _ -> onAssign(startAt) }
+private fun BookingFilterChip(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingCard(
     booking: Booking,
-    onRefresh: () -> Unit,
     onChangeStatus: (String, String?) -> Unit,
     onAssign: (String, String?, Int?) -> Unit,
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
 ) {
     var showStatusDialog by remember { mutableStateOf(false) }
     var showApptDialog by remember { mutableStateOf(false) }
 
-    val statusLabels = mapOf(
-        "new" to "Новий",
-        "contacted" to "Контакт",
-        "confirmed" to "Підтверджено",
-        "completed" to "Завершено",
-        "cancelled" to "Скасовано",
-        "no_show" to "Неявка",
-        "followup_sent" to "Follow-up"
-    )
+    val statusAccent = when (booking.status) {
+        "confirmed" -> MaterialTheme.colorScheme.tertiary
+        "completed" -> Color(0xFF7CD992)
+        "cancelled", "no_show" -> MaterialTheme.colorScheme.error
+        "contacted" -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.primary
+    }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.bookings_id, booking.id),
-                    style = MaterialTheme.typography.titleSmall
-                )
-                AssistChip(
-                    onClick = {},
-                    label = { Text(statusLabels[booking.status] ?: booking.status) },
-                    colors = AssistChipDefaults.assistChipColors()
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "${booking.lead_name.ifEmpty { "—" }} · ${booking.lead_contact.ifEmpty { "—" }}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = stringResource(R.string.bookings_service, booking.service.ifEmpty { "—" }),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (booking.date.isNotEmpty() || booking.time.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.bookings_date, booking.date, booking.time),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (booking.channel.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.bookings_channel, booking.channel),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (booking.created_at > 0) {
-                val sdf = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-                Text(
-                    text = stringResource(R.string.bookings_created, sdf.format(Date(booking.created_at * 1000L))),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (booking.note.isNotEmpty()) {
-                Text(
-                    text = booking.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showStatusDialog = true }) {
-                    Text(stringResource(R.string.bookings_change_status))
+    val statusText = when (booking.status) {
+        "new" -> "Новий"
+        "contacted" -> "Контакт"
+        "confirmed" -> "Підтверджено"
+        "completed" -> "Завершено"
+        "cancelled" -> "Скасовано"
+        "no_show" -> "Неявка"
+        "followup_sent" -> "Follow-up"
+        else -> booking.status
+    }
+
+    SectionCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.bookings_id, booking.id),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    StatusBadge(text = statusText, accent = statusAccent)
                 }
-                OutlinedButton(onClick = { showApptDialog = true }) {
-                    Text(stringResource(R.string.bookings_assign_appt))
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = onDelete,
-                modifier = Modifier.fillMaxWidth(),
-                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
+
+                Text(
+                    text = booking.lead_name.ifEmpty { "Клієнт без імені" },
+                    style = MaterialTheme.typography.titleMedium,
                 )
-            ) {
-                Text("Видалити заявку")
+
+                Text(
+                    text = booking.lead_contact.ifEmpty { "Контакт не вказаний" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+
+            TextButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_delete))
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            AssistChip(onClick = {}, label = { Text(booking.service.ifEmpty { "Без послуги" }) })
+            AssistChip(onClick = {}, label = { Text(booking.channel.ifEmpty { "Канал: —" }) })
+        }
+
+        BookingInfoRow(label = "Дата", value = formatBookingDate(booking))
+        BookingInfoRow(label = "Послуга", value = booking.service.ifEmpty { "—" })
+        BookingInfoRow(label = "Примітка", value = booking.note.ifEmpty { "—" })
+        if (booking.feedback_note.isNotBlank()) {
+            BookingInfoRow(label = "Feedback", value = booking.feedback_note)
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { showStatusDialog = true }) { Text(stringResource(R.string.bookings_change_status)) }
+            OutlinedButton(onClick = { showApptDialog = true }) { Text(stringResource(R.string.bookings_assign_appt)) }
         }
     }
 
@@ -323,132 +275,112 @@ fun BookingCard(
     if (showApptDialog) {
         AppointmentDialog(
             onDismiss = { showApptDialog = false },
-            onConfirm = { startAt, endAt, empId ->
-                onAssign(startAt, endAt, empId)
+            onConfirm = { startAt, endAt, employeeId ->
+                onAssign(startAt, endAt, employeeId)
                 showApptDialog = false
             }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StatusChangeDialog(
-    currentStatus: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String?) -> Unit
-) {
-    val statuses = listOf(
-        "new" to "Новий",
-        "contacted" to "Контакт",
-        "confirmed" to "Підтверджено",
-        "completed" to "Завершено",
-        "cancelled" to "Скасовано",
-        "no_show" to "Неявка",
-        "followup_sent" to "Follow-up"
-    )
-    var selected by remember { mutableStateOf(currentStatus) }
+private fun BookingInfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun StatusChangeDialog(currentStatus: String, onDismiss: () -> Unit, onConfirm: (String, String?) -> Unit) {
+    var status by remember { mutableStateOf(currentStatus) }
     var note by remember { mutableStateOf("") }
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.bookings_select_status)) },
+        title = { Text(stringResource(R.string.bookings_change_status)) },
         text = {
-            Column {
-                statuses.forEach { (value, label) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = selected == value,
-                            onClick = { selected = value }
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        TextButton(onClick = { selected = value }) {
-                            Text(label)
-                        }
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val options = listOf(
+                    "new" to "Новий",
+                    "contacted" to "Контакт",
+                    "confirmed" to "Підтверджено",
+                    "completed" to "Завершено",
+                    "cancelled" to "Скасовано",
+                    "no_show" to "Неявка",
+                    "followup_sent" to "Follow-up",
+                )
+                options.forEach { (value, label) ->
+                    FilterChip(selected = status == value, onClick = { status = value }, label = { Text(label) })
                 }
-                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text(stringResource(R.string.bookings_feedback_note)) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected, note.takeIf { it.isNotBlank() }) }) {
-                Text(stringResource(R.string.bookings_save))
-            }
+            TextButton(onClick = { onConfirm(status, note.ifBlank { null }) }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.bookings_cancel))
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppointmentDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String, String?, Int?) -> Unit
-) {
+private fun AppointmentDialog(onDismiss: () -> Unit, onConfirm: (String, String?, Int?) -> Unit) {
     var startAt by remember { mutableStateOf("") }
     var endAt by remember { mutableStateOf("") }
-    var empId by remember { mutableStateOf("") }
+    var employeeId by remember { mutableStateOf("") }
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.bookings_assign_appt)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = startAt,
                     onValueChange = { startAt = it },
                     label = { Text(stringResource(R.string.bookings_start_at)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = endAt,
                     onValueChange = { endAt = it },
-                    label = { Text("Кінець (опц., YYYY-MM-DDTHH:MM)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Кінець (опц.)") },
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = empId,
-                    onValueChange = { empId = it.filter { c -> c.isDigit() } },
-                    label = { Text("ID майстра (опц.)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    value = employeeId,
+                    onValueChange = { employeeId = it },
+                    label = { Text(stringResource(R.string.bookings_employee)) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(
-                    startAt.trim(),
-                    endAt.trim().takeIf { it.isNotBlank() },
-                    empId.trim().toIntOrNull()
-                )
-            }) {
-                Text(stringResource(R.string.bookings_save))
-            }
+                onConfirm(startAt, endAt.ifBlank { null }, employeeId.toIntOrNull())
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.bookings_cancel))
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
+}
+
+private fun formatBookingDate(booking: Booking): String {
+    val raw = listOfNotNull(
+        booking.date.takeIf { it.isNotBlank() },
+        booking.time.takeIf { it.isNotBlank() }
+    ).joinToString(" ")
+    if (raw.isNotBlank()) return raw
+    return if (booking.created_at > 0) {
+        SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(booking.created_at * 1000L))
+    } else {
+        "Дата уточнюється"
+    }
 }

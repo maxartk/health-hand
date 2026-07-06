@@ -305,7 +305,6 @@ def init_db():
             created_at INTEGER NOT NULL
         )''')
         ensure_column(c, 'appointments', 'employee_id', 'INTEGER REFERENCES employees(id) ON DELETE SET NULL')
-        ensure_column(c, 'employees', 'show_on_site', 'INTEGER DEFAULT 1')
         c.execute('''CREATE TABLE IF NOT EXISTS password_resets (
             token_hash TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -341,6 +340,7 @@ def init_db():
             show_on_site INTEGER DEFAULT 1,
             created_at INTEGER NOT NULL
         )""")
+        ensure_column(c, 'employees', 'show_on_site', 'INTEGER DEFAULT 1')
         c.execute("""CREATE TABLE IF NOT EXISTS employee_services (
             employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
             service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
@@ -638,7 +638,8 @@ class Handler(BaseHTTPRequestHandler):
                 services = [dict(x) for x in c.execute('SELECT * FROM services ORDER BY sort_order,id')]
                 employees = [dict(x) for x in c.execute('SELECT * FROM employees ORDER BY sort_order,id')]
                 shifts = [dict(x) for x in c.execute('SELECT * FROM employee_shifts ORDER BY employee_id,weekday,start_time')]
-            return self.send_json(200, {'ok': True, 'categories': categories, 'services': services, 'employees': employees, 'shifts': shifts})
+                employee_services = [dict(x) for x in c.execute('SELECT employee_id,service_id FROM employee_services')]
+            return self.send_json(200, {'ok': True, 'categories': categories, 'services': services, 'employees': employees, 'shifts': shifts, 'employee_services': employee_services})
         if path == '/api/admin/v2/events/summary':
             if not require_admin(self):
                 return
@@ -700,7 +701,7 @@ class Handler(BaseHTTPRequestHandler):
                      int(data.get('sort_order') or row['sort_order']),
                      1 if data.get('show_on_site', bool(row['show_on_site']) if 'show_on_site' in dict(row) else True) else 0,
                      emp_id))
-                if 'service_ids' in data:
+                if data.get('service_ids') is not None:
                     c.execute('DELETE FROM employee_services WHERE employee_id=?', (emp_id,))
                     for sid in data.get('service_ids') or []:
                         c.execute('INSERT OR IGNORE INTO employee_services(employee_id,service_id,created_at) VALUES(?,?,?)', (emp_id, int(sid), now_ts()))

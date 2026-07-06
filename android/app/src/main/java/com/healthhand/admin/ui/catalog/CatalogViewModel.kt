@@ -107,7 +107,7 @@ class CatalogViewModel : ViewModel() {
 
     fun saveEmployee(
         id: Int?, name: String, role: String, bio: String, phone: String,
-        sortOrder: Int, isActive: Boolean, showOnSite: Boolean,
+        sortOrder: Int, isActive: Boolean, showOnSite: Boolean, serviceIds: List<Int>,
     ) {
         viewModelScope.launch {
             val snapshot = _state.value.catalog
@@ -122,7 +122,7 @@ class CatalogViewModel : ViewModel() {
                 val req = EmployeeRequest(
                     id = id, name = name, role = role, bio = bio, phone = phone,
                     is_active = if (isActive) 1 else 0, sort_order = sortOrder,
-                    show_on_site = if (showOnSite) 1 else 0,
+                    show_on_site = if (showOnSite) 1 else 0, service_ids = serviceIds,
                 )
                 val resp = if (id == null) ApiClient.api().createEmployee(req)
                 else ApiClient.api().updateEmployee(req)
