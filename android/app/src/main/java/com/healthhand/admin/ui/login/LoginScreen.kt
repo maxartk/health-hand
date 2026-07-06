@@ -103,26 +103,21 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                         loading = true
                         error = null
                         try {
-                            // Save the token + url first so the auth interceptor uses it.
                             ApiClient.rebuild(baseUrl)
                             tokenStore.saveToken(token.trim())
                             tokenStore.saveBaseUrl(ApiClient.baseUrl)
-                            val result = withContext(Dispatchers.IO) {
-                                runCatching {
-                                    ApiClient.api().getEventsSummary(days = 1)
-                                }
+                            val resp = withContext(Dispatchers.IO) {
+                                ApiClient.api().getEventsSummary(days = 1)
                             }
-                            val resp = result.getOrNull()
-                            if (resp?.ok == true) {
+                            if (resp.ok) {
                                 onLoggedIn()
                             } else {
-                                // 403 already triggered force-logout flow; show message.
                                 tokenStore.clearToken()
-                                error = context.getString(R.string.login_error_invalid)
+                                error = "Невiрний токен (${resp.error ?: "403"})"
                             }
                         } catch (e: Exception) {
                             tokenStore.clearToken()
-                            error = context.getString(R.string.login_error_generic, e.message ?: "?")
+                            error = "Помилка: ${e.message ?: e.javaClass.simpleName}"
                         } finally {
                             loading = false
                         }
