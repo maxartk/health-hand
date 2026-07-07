@@ -131,7 +131,7 @@ def seed_v2_defaults(conn):
         ('Релакс масаж', 'М’який антистресовий масаж для глибокого розслаблення.', 60, 1200, category_id, 20),
         ('Спортивний масаж', 'Інтенсивна робота з м’язами після навантажень або для профілактики.', 60, 1400, category_id, 30),
         ('Масаж спини', 'Фокус на спині, шиї та плечовому поясі.', 45, 900, category_id, 40),
-        ('Антицелюлітний масаж', 'Курсова процедура для тонусу шкіри та лімфодренажу.', 60, 1300, category_id, 50),
+        ('Антицелюлітний масаж', 'Курсова процедура для тонусу шкіри та моделюючого догляду.', 60, 1300, category_id, 50),
     ]
     for name, description, duration, price, cat, order in defaults:
         conn.execute("""INSERT INTO services(name,description,duration_minutes,price,category_id,sort_order,is_active,created_at)
