@@ -814,6 +814,25 @@ function initAiAssistant() {
   const messages = $('#aiAssistantMessages');
   if (!root || !toggle || !panel || !form || !input || !messages) return;
 
+  const localReply = (message) => {
+    const text = message.toLowerCase();
+    const services = bookingCatalog.services || [];
+    const find = (needle) => services.find((service) => String(service.name || '').toLowerCase().includes(needle));
+    const back = find('спин') || services[3] || services[0];
+    const relax = find('релакс') || services[1] || services[0];
+    const sport = find('спор') || services[2] || services[0];
+    const classic = find('клас') || services[0];
+    const anti = find('анти') || services[4] || services[0];
+    let service = classic;
+    if (/спин|поперек|шия|шиї|плеч/.test(text)) service = back;
+    else if (/стрес|втом|сон|розслаб|релакс/.test(text)) service = relax;
+    else if (/спорт|трен|м'яз|мяз|навантаж/.test(text)) service = sport;
+    else if (/целюл|шкір|модел/.test(text)) service = anti;
+    const price = service?.price ? `${Number(service.price).toLocaleString('uk-UA')} грн` : 'ціну уточнить адміністратор';
+    const duration = service?.duration_minutes ? `${service.duration_minutes} хв` : 'тривалість уточнить адміністратор';
+    return `Попередньо я б порадив(ла): ${service?.name || 'консультацію Health Hand'} — ${price}, ${duration}.\n\nЯкщо є гострий біль, оніміння, температура, травма або вагітність — краще спочатку порадитись із лікарем. Для точного підбору залиште заявку у формі, і адміністратор підтвердить послугу та час.`;
+  };
+
   const addMessage = (text, who = 'bot') => {
     const node = document.createElement('div');
     node.className = `ai-msg ai-msg-${who}`;
@@ -857,9 +876,9 @@ function initAiAssistant() {
       let data = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch { data = { reply: raw }; }
       const reply = data.reply || data.message || data.text || data.output || '';
-      pending.textContent = reply || 'AI консультант тимчасово недоступний. Залиште заявку у формі — адміністратор Health Hand зв’яжеться з вами.';
+      pending.textContent = reply || localReply(message);
     } catch (error) {
-      pending.textContent = 'AI консультант тимчасово недоступний. Залиште заявку у формі — адміністратор Health Hand зв’яжеться з вами.';
+      pending.textContent = localReply(message);
       console.warn('AI assistant failed', error);
     } finally {
       input.disabled = false;

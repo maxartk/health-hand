@@ -49,7 +49,6 @@
           <div class="hero-actions">
             <a class="btn btn-primary" href="#rezervace">Записатися на масаж</a>
             <button type="button" class="btn btn-ghost" data-open-quiz>Підібрати масаж</button>
-                      <button type="button" class="btn btn-ai" data-open-ai>AI консультант</button>
           </div>
           <div class="trust-row" aria-label="Довіра">
             <span>індивідуальний підхід</span>
@@ -282,22 +281,23 @@
     </div>
   </div>
 
-  <div class="ai-assistant" id="aiAssistant">
-    <button class="ai-assistant-toggle" id="aiAssistantToggle" type="button" aria-expanded="false" aria-controls="aiAssistantPanel">
-      <span>AI</span>
-      <strong>Консультант</strong>
+  <div class="ai-chat" id="aiAssistant">
+    <button class="ai-chat-button" id="aiAssistantToggle" type="button" aria-expanded="false" aria-controls="aiAssistantPanel" aria-label="Відкрити AI консультанта">
+      <span class="ai-chat-icon">💬</span>
+      <span class="ai-chat-badge">AI</span>
     </button>
-    <section class="ai-assistant-panel" id="aiAssistantPanel" aria-label="AI консультант Health Hand" hidden>
-      <div class="ai-assistant-head">
-        <div><strong>AI консультант Health Hand</strong><span>Підкаже послугу або підготовку до масажу</span></div>
-        <button type="button" id="aiAssistantClose" aria-label="Закрити AI консультанта">×</button>
+    <section class="ai-chat-panel" id="aiAssistantPanel" aria-label="AI консультант Health Hand" hidden>
+      <div class="ai-chat-head">
+        <div class="ai-chat-avatar">AI</div>
+        <div><strong>AI консультант</strong><span>Health Hand · підбір масажу</span></div>
+        <button type="button" id="aiAssistantClose" aria-label="Закрити чат">×</button>
       </div>
-      <div class="ai-assistant-messages" id="aiAssistantMessages" aria-live="polite">
-        <div class="ai-msg ai-msg-bot">Вітаю! Напишіть, що вас турбує, і я підкажу, яка послуга з каталогу може підійти.</div>
+      <div class="ai-chat-messages" id="aiAssistantMessages" aria-live="polite">
+        <div class="ai-msg ai-msg-bot">Вітаю! Я консультант Health Hand. Напишіть, що турбує — спина, шия, напруга, втома — і я підкажу, яку послугу обрати.</div>
       </div>
-      <form class="ai-assistant-form" id="aiAssistantForm">
-        <input id="aiAssistantInput" name="message" autocomplete="off" maxlength="800" placeholder="Напишіть питання про масаж…" required />
-        <button type="submit">Надіслати</button>
+      <form class="ai-chat-form" id="aiAssistantForm">
+        <input id="aiAssistantInput" name="message" autocomplete="off" maxlength="800" placeholder="Напишіть повідомлення…" required />
+        <button type="submit" aria-label="Надіслати">➤</button>
       </form>
     </section>
   </div>
