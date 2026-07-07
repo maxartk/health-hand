@@ -525,7 +525,7 @@ function initPackageButtons() {
       const service = button.dataset.fill;
       const select = $('select[name="service"]');
       if (select) {
-        const option = [...select.options].find((opt) => opt.textContent === service);
+        const option = [...select.options].find((opt) => opt.textContent === service || opt.textContent.startsWith(`${service} —`));
         if (option) select.value = option.value;
       }
       location.hash = '#rezervace';
@@ -623,11 +623,11 @@ const QUIZ_QUESTIONS = [
 ];
 
 const QUIZ_RESULTS = {
-  back: { service: 'Терапевтичний масаж спини', duration: '60–90 хв', note: 'Біль/скутість у спині' },
-  neck: { service: 'Масаж шиї та плечей', duration: '60–75 хв', note: 'Напруження шиї та плечей' },
-  lymph: { service: 'Лімфодренажний масаж', duration: '60–90 хв', note: 'Набряки / важкість у ногах' },
-  stress: { service: 'Anti-Stress Therapy', duration: '60–90 хв', note: 'Стрес, втома, безсоння' },
-  recovery: { service: 'Відновлювальний масаж', duration: '60–90 хв', note: 'Відновлення після навантажень' }
+  back: { service: 'Масаж спини', duration: '45 хв', note: 'Біль/скутість у спині' },
+  neck: { service: 'Класичний масаж', duration: '60 хв', note: 'Напруження шиї та плечей' },
+  lymph: { service: 'Антицелюлітний масаж', duration: '60 хв', note: 'Набряки / важкість у ногах' },
+  stress: { service: 'Релакс масаж', duration: '60 хв', note: 'Стрес, втома, безсоння' },
+  recovery: { service: 'Спортивний масаж', duration: '60 хв', note: 'Відновлення після навантажень' }
 };
 
 function initQuiz() {
@@ -717,7 +717,7 @@ function initQuiz() {
     $('[data-book-result]', body)?.addEventListener('click', () => {
       const select = $('select[name="service"]');
       if (select) {
-        const option = [...select.options].find((opt) => opt.textContent === service);
+        const option = [...select.options].find((opt) => opt.textContent === service || opt.textContent.startsWith(`${service} —`));
         if (option) select.value = option.value;
       }
       const channelSelect = $('select[name="channel"]');
