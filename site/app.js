@@ -137,7 +137,7 @@ function renderServiceOptions(form) {
 function renderHeroService() {
   const card = $('#heroServiceCard');
   if (!card || !bookingCatalog.services.length) return;
-  const service = bookingCatalog.services.find((item) => String(item.name || '').toLowerCase().includes('спин')) || bookingCatalog.services[0];
+  const service = bookingCatalog.services[3] || bookingCatalog.services[0];
   card.dataset.serviceId = service.id;
   card.innerHTML = `
     <span class="card-label">Актуальна послуга з каталогу</span>
