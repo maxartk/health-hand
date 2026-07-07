@@ -223,6 +223,25 @@ h3 {
   transform: translateY(-2px);
   filter: brightness(1.04);
 }
+.btn-ai {
+  background: #101826;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 16px 44px rgba(16, 24, 38, 0.28);
+}
+.btn-ai::before {
+  content: 'AI';
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #101826;
+  font-size: 11px;
+  font-weight: 950;
+}
 .btn-ghost {
   border-color: rgba(255, 255, 255, 0.28);
   color: #fff;
@@ -1697,8 +1716,8 @@ blockquote {
 .ai-assistant {
   position: fixed;
   right: 18px;
-  bottom: 96px;
-  z-index: 60;
+  bottom: 176px;
+  z-index: 90;
   font-family: inherit;
 }
 .ai-assistant-toggle {
@@ -1807,9 +1826,18 @@ blockquote {
 @media (max-width: 700px) {
   .ai-assistant {
     right: 12px;
-    bottom: 86px;
+    bottom: 168px;
+  }
+  .ai-assistant-toggle {
+    padding: 12px 14px;
   }
   .ai-assistant-toggle strong {
-    display: none;
+    display: inline;
+    font-size: 13px;
+  }
+  .ai-assistant-panel {
+    right: -4px;
+    bottom: 62px;
+    width: calc(100vw - 24px);
   }
 }

@@ -836,6 +836,7 @@ function initAiAssistant() {
   };
 
   toggle.addEventListener('click', () => panel.hidden ? open() : close());
+  $$('[data-open-ai]').forEach((button) => button.addEventListener('click', open));
   closeBtn?.addEventListener('click', close);
 
   form.addEventListener('submit', async (event) => {
