@@ -88,6 +88,27 @@ function formatPrice(value) {
   return price > 0 ? `${price.toLocaleString('uk-UA')} грн` : 'ціну уточнимо';
 }
 
+function formatDuration(value) {
+  return value ? `${value} хв` : 'тривалість уточнимо';
+}
+
+function serviceImage(index) {
+  return ['assets/ritual.jpg', 'assets/stones.jpg', 'assets/face.jpg', 'assets/room.jpg', 'assets/hero.jpg'][index % 5];
+}
+
+function selectBookingService(serviceId, serviceName = '') {
+  const select = $('select[name="service"]');
+  if (!select) return false;
+  const option = [...select.options].find((opt) =>
+    String(opt.dataset.serviceId || '') === String(serviceId || '') ||
+    (serviceName && (opt.value === serviceName || opt.textContent.startsWith(`${serviceName} —`)))
+  );
+  if (!option) return false;
+  select.value = option.value;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
 function setSelectLoading(select, text) {
   if (!select) return;
   select.innerHTML = `<option value="">${esc(text)}</option>`;
@@ -113,20 +134,73 @@ function renderServiceOptions(form) {
   }
 }
 
+function renderHeroService() {
+  const card = $('#heroServiceCard');
+  if (!card || !bookingCatalog.services.length) return;
+  const service = bookingCatalog.services.find((item) => String(item.name || '').toLowerCase().includes('спин')) || bookingCatalog.services[0];
+  card.dataset.serviceId = service.id;
+  card.innerHTML = `
+    <span class="card-label">Актуальна послуга з каталогу</span>
+    <h2>${esc(service.name)}</h2>
+    <p>${esc(service.description || 'Опис послуги можна змінити в Android-додатку власниці.')}</p>
+    <div class="price-line"><strong>${esc(formatPrice(service.price))}</strong><span>${esc(formatDuration(service.duration_minutes))}</span></div>
+    <a href="#rezervace" class="text-link" data-service-id="${esc(service.id)}">Записатися →</a>
+  `;
+}
+
+function renderSiteRituals() {
+  const grid = $('#siteRitualGrid');
+  if (!grid || !bookingCatalog.services.length) return;
+  grid.innerHTML = bookingCatalog.services.slice(0, 3).map((service, index) => {
+    const delay = index === 1 ? ' delay-1' : index === 2 ? ' delay-2' : '';
+    return `<article class="ritual-card reveal visible${delay}">
+      <div class="ritual-img"><img src="${esc(serviceImage(index))}" alt="${esc(service.name)}" loading="lazy" /></div>
+      <div>
+        <h3>${esc(service.name)}</h3>
+        <p>${esc(service.description || 'Опис послуги можна змінити в Android-додатку власниці.')}</p>
+        <span>${esc(formatDuration(service.duration_minutes))}</span>
+      </div>
+    </article>`;
+  }).join('');
+}
+
 function renderSiteServices() {
   const grid = $('#siteServiceGrid');
   if (!grid || !bookingCatalog.services.length) return;
   grid.innerHTML = bookingCatalog.services.map((service, index) => {
     const delay = index % 3 === 1 ? ' delay-1' : index % 3 === 2 ? ' delay-2' : '';
-    const duration = service.duration_minutes ? `${service.duration_minutes} хв` : 'тривалість уточнимо';
-    const price = formatPrice(service.price);
-    return `<article class="service reveal${delay}">
+    return `<article class="service reveal visible${delay}">
       <span>${String(index + 1).padStart(2, '0')}</span>
       <h3>${esc(service.name)}</h3>
       <p>${esc(service.description || 'Опис послуги можна змінити в Android-додатку власниці.')}</p>
-      <strong>${esc(price)} · ${esc(duration)}</strong>
+      <strong>${esc(formatPrice(service.price))} · ${esc(formatDuration(service.duration_minutes))}</strong>
     </article>`;
   }).join('');
+}
+
+function renderSitePackages() {
+  const grid = $('#sitePackageGrid');
+  if (!grid || !bookingCatalog.services.length) return;
+  const picks = bookingCatalog.services.slice(0, 3);
+  grid.innerHTML = picks.map((service, index) => {
+    const delay = index === 1 ? ' delay-1' : index === 2 ? ' delay-2' : '';
+    const featured = index === 1 ? ' featured' : '';
+    const badge = index === 1 ? '<div class="badge">з каталогу</div>' : '';
+    return `<article class="package${featured} reveal visible${delay}">
+      ${badge}
+      <h3>${esc(service.name)}</h3>
+      <p>${esc(service.description || 'Опис послуги можна змінити в Android-додатку власниці.')}</p>
+      <strong>${esc(formatPrice(service.price))} · ${esc(formatDuration(service.duration_minutes))}</strong>
+      <button type="button" data-service-id="${esc(service.id)}">Маю інтерес</button>
+    </article>`;
+  }).join('');
+}
+
+function renderApiDrivenSiteBlocks() {
+  renderHeroService();
+  renderSiteRituals();
+  renderSiteServices();
+  renderSitePackages();
 }
 
 function selectedServiceId(form) {
@@ -142,7 +216,7 @@ async function loadBookingServices() {
     setSelectLoading(serviceSelect, 'Завантажую послуги…');
     const data = await apiFetch(`${API_V2}/services`);
     bookingCatalog.services = data.services || [];
-    renderSiteServices();
+    renderApiDrivenSiteBlocks();
     renderServiceOptions(form);
   } catch (error) {
     console.warn('Services API failed', error);
@@ -520,17 +594,15 @@ function initClientPortal() {
 }
 
 function initPackageButtons() {
-  $$('[data-fill]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const service = button.dataset.fill;
-      const select = $('select[name="service"]');
-      if (select) {
-        const option = [...select.options].find((opt) => opt.textContent === service || opt.textContent.startsWith(`${service} —`));
-        if (option) select.value = option.value;
-      }
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-service-id], [data-fill]');
+    if (!button) return;
+    const serviceId = button.dataset.serviceId || '';
+    const serviceName = button.dataset.fill || '';
+    if (selectBookingService(serviceId, serviceName)) {
       location.hash = '#rezervace';
       setTimeout(() => $('input[name="name"]')?.focus(), 450);
-    });
+    }
   });
 }
 
@@ -568,17 +640,23 @@ function initReveal() {
 
 // --- Premium features: quiz, sticky CTA, urgency banner, FAB ---
 
-const QUIZ_QUESTIONS = [
-  {
-    question: 'Що вас турбує найбільше?',
-    options: [
-      { label: 'Біль / скутість у спині', value: 'back' },
-      { label: 'Потрібен базовий масаж тіла', value: 'classic' },
-      { label: 'Потрібен моделюючий догляд', value: 'anti_cellulite' },
-      { label: 'Стрес, втома, безсоння', value: 'stress' },
-      { label: 'Після спорту або навантажень', value: 'sport' }
-    ]
-  },
+function quizQuestions() {
+  const serviceOptions = bookingCatalog.services.map((service) => ({
+    label: `${service.name} · ${formatPrice(service.price)} · ${formatDuration(service.duration_minutes)}`,
+    value: `service:${service.id}`
+  }));
+  return [
+    {
+      question: 'Яку послугу з актуального каталогу обрати?',
+      options: serviceOptions.length ? serviceOptions : [
+        { label: 'Каталог ще завантажується — спробуйте за кілька секунд', value: 'loading' }
+      ]
+    },
+    ...QUIZ_FOLLOWUP_QUESTIONS
+  ];
+}
+
+const QUIZ_FOLLOWUP_QUESTIONS = [
   {
     question: 'Як довго вас це турбує?',
     options: [
@@ -622,14 +700,6 @@ const QUIZ_QUESTIONS = [
   }
 ];
 
-const QUIZ_RESULTS = {
-  back: { service: 'Масаж спини', duration: '45 хв', note: 'Масаж спини' },
-  classic: { service: 'Класичний масаж', duration: '60 хв', note: 'Класичний масаж' },
-  anti_cellulite: { service: 'Антицелюлітний масаж', duration: '60 хв', note: 'Антицелюлітний масаж' },
-  stress: { service: 'Релакс масаж', duration: '60 хв', note: 'Релакс масаж' },
-  sport: { service: 'Спортивний масаж', duration: '60 хв', note: 'Спортивний масаж' }
-};
-
 function initQuiz() {
   const modal = $('#quizModal');
   const body = $('#quizBody');
@@ -655,13 +725,14 @@ function initQuiz() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
 
   function renderStep() {
-    const q = QUIZ_QUESTIONS[step];
-    progress.firstElementChild.style.width = `${((step + 1) / QUIZ_QUESTIONS.length) * 100}%`;
+    const questions = quizQuestions();
+    const q = questions[step];
+    progress.firstElementChild.style.width = `${((step + 1) / questions.length) * 100}%`;
     prevBtn.hidden = step === 0;
-    nextBtn.textContent = step === QUIZ_QUESTIONS.length - 1 ? 'Отримати рекомендацію' : 'Далі';
-    nextBtn.disabled = !answers[step];
+    nextBtn.textContent = step === questions.length - 1 ? 'Отримати рекомендацію' : 'Далі';
+    nextBtn.disabled = !answers[step] || answers[step] === 'loading';
 
-    if (step < QUIZ_QUESTIONS.length) {
+    if (step < questions.length) {
       body.innerHTML = `
         <p class="quiz-question">${esc(q.question)}</p>
         <div class="quiz-options" role="radiogroup" aria-label="${esc(q.question)}">
@@ -683,7 +754,8 @@ function initQuiz() {
   }
 
   nextBtn.addEventListener('click', () => {
-    if (step < QUIZ_QUESTIONS.length - 1) {
+    const questions = quizQuestions();
+    if (step < questions.length - 1) {
       step++;
       renderStep();
     } else {
@@ -694,32 +766,31 @@ function initQuiz() {
   prevBtn.addEventListener('click', () => { if (step > 0) { step--; renderStep(); } });
 
   function showResult() {
-    const main = answers[0];
+    const selected = String(answers[0] || '');
+    const serviceId = selected.startsWith('service:') ? selected.slice('service:'.length) : '';
+    const serviceObj = bookingCatalog.services.find((item) => String(item.id) === String(serviceId)) || bookingCatalog.services[0];
     const contra = answers[2];
     const format = answers[3];
     const channel = answers[4];
-    const rec = QUIZ_RESULTS[main] || QUIZ_RESULTS.back;
-    const service = format === 'gift' ? 'Подарунковий сертифікат' : rec.service;
+    const service = serviceObj?.name || 'послуга з актуального каталогу';
+    const duration = formatDuration(serviceObj?.duration_minutes);
+    const note = format === 'gift' ? `Сертифікат на послугу: ${service}` : (serviceObj?.description || service);
     const warn = contra === 'contra' || contra === 'injury'
       ? '<p style="color:#a83232"><strong>Увага:</strong> при гострих станах, температурі або нещодавній травмі спочатку проконсультуйтесь із лікарем.</p>'
       : '';
     body.innerHTML = `
       <div class="quiz-result">
         <h3>Рекомендація: ${esc(service)}</h3>
-        <p>${esc(rec.duration)} · ${esc(rec.note)}</p>
+        <p>${esc(duration)} · ${esc(note)}</p>
         ${warn}
-        <button class="btn btn-primary" type="button" data-book-result>Записатися на ${esc(service)}</button>
+        <button class="btn btn-primary" type="button" data-book-result data-service-id="${esc(serviceObj?.id || '')}">Записатися на ${esc(service)}</button>
       </div>
     `;
     nextBtn.hidden = true;
     prevBtn.hidden = true;
     progress.firstElementChild.style.width = '100%';
     $('[data-book-result]', body)?.addEventListener('click', () => {
-      const select = $('select[name="service"]');
-      if (select) {
-        const option = [...select.options].find((opt) => opt.textContent === service || opt.textContent.startsWith(`${service} —`));
-        if (option) select.value = option.value;
-      }
+      selectBookingService(serviceObj?.id || '', service);
       const channelSelect = $('select[name="channel"]');
       if (channelSelect && channel) channelSelect.value = channel;
       close();
