@@ -573,10 +573,10 @@ const QUIZ_QUESTIONS = [
     question: 'Що вас турбує найбільше?',
     options: [
       { label: 'Біль / скутість у спині', value: 'back' },
-      { label: 'Напруження шиї та плечей', value: 'neck' },
-      { label: 'Набряки / важкість у ногах', value: 'lymph' },
+      { label: 'Потрібен базовий масаж тіла', value: 'classic' },
+      { label: 'Потрібен моделюючий догляд', value: 'anti_cellulite' },
       { label: 'Стрес, втома, безсоння', value: 'stress' },
-      { label: 'Відновлення після навантажень', value: 'recovery' }
+      { label: 'Після спорту або навантажень', value: 'sport' }
     ]
   },
   {
@@ -623,11 +623,11 @@ const QUIZ_QUESTIONS = [
 ];
 
 const QUIZ_RESULTS = {
-  back: { service: 'Масаж спини', duration: '45 хв', note: 'Біль/скутість у спині' },
-  neck: { service: 'Класичний масаж', duration: '60 хв', note: 'Напруження шиї та плечей' },
-  lymph: { service: 'Антицелюлітний масаж', duration: '60 хв', note: 'Набряки / важкість у ногах' },
-  stress: { service: 'Релакс масаж', duration: '60 хв', note: 'Стрес, втома, безсоння' },
-  recovery: { service: 'Спортивний масаж', duration: '60 хв', note: 'Відновлення після навантажень' }
+  back: { service: 'Масаж спини', duration: '45 хв', note: 'Масаж спини' },
+  classic: { service: 'Класичний масаж', duration: '60 хв', note: 'Класичний масаж' },
+  anti_cellulite: { service: 'Антицелюлітний масаж', duration: '60 хв', note: 'Антицелюлітний масаж' },
+  stress: { service: 'Релакс масаж', duration: '60 хв', note: 'Релакс масаж' },
+  sport: { service: 'Спортивний масаж', duration: '60 хв', note: 'Спортивний масаж' }
 };
 
 function initQuiz() {
