@@ -727,7 +727,7 @@ function initQuiz() {
   function renderStep() {
     const questions = quizQuestions();
     const q = questions[step];
-    progress.firstElementChild.style.width = `${((step + 1) / questions.length) * 100}%`;
+    progress.style.width = `${((step + 1) / questions.length) * 100}%`;
     prevBtn.hidden = step === 0;
     nextBtn.textContent = step === questions.length - 1 ? 'Отримати рекомендацію' : 'Далі';
     nextBtn.disabled = !answers[step] || answers[step] === 'loading';
@@ -788,7 +788,7 @@ function initQuiz() {
     `;
     nextBtn.hidden = true;
     prevBtn.hidden = true;
-    progress.firstElementChild.style.width = '100%';
+    progress.style.width = '100%';
     $('[data-book-result]', body)?.addEventListener('click', () => {
       selectBookingService(serviceObj?.id || '', service);
       const channelSelect = $('select[name="channel"]');
