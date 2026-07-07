@@ -459,12 +459,15 @@ function initBookingForm() {
     data.consent = data.consent === 'on' || data.consent === true;
     const payload = { ...data, session_id: HH_SESSION_ID, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), createdAt: new Date().toISOString(), page: location.href, userAgent: navigator.userAgent };
     setStatus(status, '', 'Надсилаю заявку…');
-    let webhookOk = false;
     try {
-      await sendToWebhook(payload);
-      webhookOk = true;
-      const saved = await saveBookingToBackend(payload, true);
+      const saved = await saveBookingToBackend(payload, false);
+      if (!saved) throw new Error('Не вдалося зберегти заявку');
       trackEvent('booking_submitted', { service_id: data.service_id, employee_id: data.employee_id, date: data.date, time: data.time, saved });
+
+      // Webhook is an internal automation channel. It must never show a red error to the client
+      // after the booking was saved successfully in the Health Hand database.
+      sendToWebhook(payload).catch((error) => console.warn('Booking webhook failed after save', error));
+
       setStatus(status, 'ok', portalState.user ? 'Заявку надіслано й додано в особистий кабінет.' : 'Заявку надіслано. Створіть кабінет нижче, щоб бачити історію записів.');
       form.reset();
       setMinDate();
@@ -472,8 +475,7 @@ function initBookingForm() {
       if (location.pathname.startsWith('/portal')) location.hash = '#cabinet';
       else location.href = '/portal/';
     } catch (error) {
-      await saveBookingToBackend(payload, webhookOk);
-      setStatus(status, 'err', `Заявку збережено, але автоматична відправка дала помилку: ${error.message}.`);
+      setStatus(status, 'err', 'Не вдалося зберегти заявку. Перевірте дані й спробуйте ще раз.');
     }
   });
 }
