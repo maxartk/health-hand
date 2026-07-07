@@ -1691,3 +1691,125 @@ blockquote {
     justify-content: center;
   }
 }
+
+
+/* AI assistant */
+.ai-assistant {
+  position: fixed;
+  right: 18px;
+  bottom: 96px;
+  z-index: 60;
+  font-family: inherit;
+}
+.ai-assistant-toggle {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: #101826;
+  color: #fff;
+  box-shadow: 0 18px 54px rgba(16, 24, 38, 0.28);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 900;
+}
+.ai-assistant-toggle span {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #101826;
+  letter-spacing: 0.04em;
+}
+.ai-assistant-panel {
+  position: absolute;
+  right: 0;
+  bottom: 58px;
+  width: min(360px, calc(100vw - 28px));
+  overflow: hidden;
+  border-radius: 26px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 24px 80px rgba(16, 24, 38, 0.28);
+  border: 1px solid rgba(16, 24, 38, 0.08);
+}
+.ai-assistant-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--mist);
+}
+.ai-assistant-head strong,
+.ai-assistant-head span {
+  display: block;
+}
+.ai-assistant-head span {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.ai-assistant-head button {
+  border: 0;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink);
+}
+.ai-assistant-messages {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 16px;
+}
+.ai-msg {
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.ai-msg-bot {
+  background: var(--mist);
+  justify-self: start;
+}
+.ai-msg-user {
+  background: #101826;
+  color: #fff;
+  justify-self: end;
+}
+.ai-assistant-form {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid rgba(16, 24, 38, 0.08);
+}
+.ai-assistant-form input {
+  min-width: 0;
+  border-radius: 999px;
+  padding: 12px 14px;
+}
+.ai-assistant-form button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: var(--gold);
+  color: #101826;
+  font-weight: 900;
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .ai-assistant {
+    right: 12px;
+    bottom: 86px;
+  }
+  .ai-assistant-toggle strong {
+    display: none;
+  }
+}

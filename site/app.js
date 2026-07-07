@@ -3,6 +3,7 @@ const N8N_WEBHOOK_URL = '/webhook/health-hand-booking';
 const API = '/api/portal';
 const API_V2 = '/api/v2';
 const BOOKING_API = '/api/bookings';
+const AI_CHAT_WEBHOOK = '/webhook/health-hand-site-chat-ai';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -802,6 +803,70 @@ function initQuiz() {
   }
 }
 
+
+function initAiAssistant() {
+  const root = $('#aiAssistant');
+  const toggle = $('#aiAssistantToggle');
+  const panel = $('#aiAssistantPanel');
+  const closeBtn = $('#aiAssistantClose');
+  const form = $('#aiAssistantForm');
+  const input = $('#aiAssistantInput');
+  const messages = $('#aiAssistantMessages');
+  if (!root || !toggle || !panel || !form || !input || !messages) return;
+
+  const addMessage = (text, who = 'bot') => {
+    const node = document.createElement('div');
+    node.className = `ai-msg ai-msg-${who}`;
+    node.textContent = text;
+    messages.appendChild(node);
+    messages.scrollTop = messages.scrollHeight;
+    return node;
+  };
+
+  const open = () => {
+    panel.hidden = false;
+    root.classList.add('open');
+    toggle.setAttribute('aria-expanded', 'true');
+    setTimeout(() => input.focus(), 100);
+  };
+  const close = () => {
+    panel.hidden = true;
+    root.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  toggle.addEventListener('click', () => panel.hidden ? open() : close());
+  closeBtn?.addEventListener('click', close);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const message = input.value.trim();
+    if (!message) return;
+    addMessage(message, 'user');
+    input.value = '';
+    input.disabled = true;
+    const pending = addMessage('Думаю…', 'bot');
+    try {
+      const response = await fetch(AI_CHAT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, page: location.href, services: bookingCatalog.services })
+      });
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { reply: raw }; }
+      const reply = data.reply || data.message || data.text || data.output || '';
+      pending.textContent = reply || 'AI консультант тимчасово недоступний. Залиште заявку у формі — адміністратор Health Hand зв’яжеться з вами.';
+    } catch (error) {
+      pending.textContent = 'AI консультант тимчасово недоступний. Залиште заявку у формі — адміністратор Health Hand зв’яжеться з вами.';
+      console.warn('AI assistant failed', error);
+    } finally {
+      input.disabled = false;
+      input.focus();
+    }
+  });
+}
+
 function initStickyCta() {
   const el = $('#stickyCta');
   if (!el) return;
@@ -865,5 +930,6 @@ initBookingForm();
 initClientPortal();
 initQuiz();
 initStickyCta();
+initAiAssistant();
 initTopBanner();
 initFab();
