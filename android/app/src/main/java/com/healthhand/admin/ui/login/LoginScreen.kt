@@ -86,7 +86,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
 
                 SectionCard {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        MetricCard(label = "Доступ", value = "Secure", caption = "API token", modifier = Modifier.weight(1f), accent = MaterialTheme.colorScheme.primary)
+                        MetricCard(label = "Доступ", value = if (tokenStore.secureStorageAvailable) "Захищено" else "Недоступно", caption = "Android Keystore", modifier = Modifier.weight(1f), accent = if (tokenStore.secureStorageAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                         MetricCard(label = "Режим", value = "Native", caption = "Compose UI", modifier = Modifier.weight(1f), accent = MaterialTheme.colorScheme.tertiary)
                     }
                 }
@@ -138,6 +138,15 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
 
                     Spacer(Modifier.height(16.dp))
 
+                    if (!tokenStore.secureStorageAvailable) {
+                        Text(
+                            "Захищене сховище Android недоступне. Вхід заблоковано, щоб токен не зберігався незашифрованим.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+
                     if (loading) {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(modifier = Modifier.size(28.dp), color = MaterialTheme.colorScheme.primary)
@@ -171,6 +180,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = tokenStore.secureStorageAvailable && token.isNotBlank(),
                         ) {
                             Text(stringResource(R.string.login_button))
                         }

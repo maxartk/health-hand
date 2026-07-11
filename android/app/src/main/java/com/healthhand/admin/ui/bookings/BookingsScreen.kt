@@ -357,13 +357,13 @@ private fun AppointmentDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = startAt,
-                    onValueChange = { startAt = it },
+                    onValueChange = { startAt = it; validationError = null },
                     label = { Text(stringResource(R.string.bookings_start_at)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = endAt,
-                    onValueChange = { endAt = it },
+                    onValueChange = { endAt = it; validationError = null },
                     label = { Text("Кінець (опц.)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -383,10 +383,14 @@ private fun AppointmentDialog(
                         expanded = employeeMenuExpanded,
                         onDismissRequest = { employeeMenuExpanded = false },
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Без призначеного майстра") },
+                            onClick = { employeeId = null; validationError = null; employeeMenuExpanded = false },
+                        )
                         employees.filter { it.is_active != 0 }.forEach { employee ->
                             DropdownMenuItem(
                                 text = { Text(employee.name) },
-                                onClick = { employeeId = employee.id; employeeMenuExpanded = false },
+                                onClick = { employeeId = employee.id; validationError = null; employeeMenuExpanded = false },
                             )
                         }
                     }
@@ -398,11 +402,7 @@ private fun AppointmentDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                validationError = when {
-                    startAt.isBlank() -> "Вкажіть дату і час початку"
-                    employeeId == null -> "Оберіть майстра"
-                    else -> null
-                }
+                validationError = validateAppointment(startAt, endAt)
                 if (validationError == null) {
                     onConfirm(startAt.trim(), endAt.trim().ifBlank { null }, employeeId)
                 }

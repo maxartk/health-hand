@@ -71,7 +71,7 @@ def start_local_server(port: int, admin_token: str):
 
     class CombinedHandler(portal_api.Handler, SimpleHTTPRequestHandler):
         def translate_path(self, path: str) -> str:
-            return str(ROOT / urlparse(path).path.lstrip('/'))
+            return str(ROOT / 'site' / urlparse(path).path.lstrip('/'))
 
         def log_message(self, fmt, *args):
             return
@@ -130,9 +130,9 @@ def main() -> None:
 
     run(['python3', '-m', 'py_compile', 'portal_api.py'])
     ok('python syntax')
-    run(['node', '--check', 'app.js'])
+    run(['node', '--check', 'app.js'], cwd=ROOT / 'site')
     ok('app.js syntax')
-    run(['node', '--check', 'admin/admin.js'])
+    run(['node', '--check', 'admin/admin.js'], cwd=ROOT / 'site')
     ok('admin.js syntax')
 
     httpd = None

@@ -57,8 +57,9 @@ object ApiClient {
 
     private fun buildOkHttp(base: String): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
+            redactHeader("Authorization")
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.BASIC
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }

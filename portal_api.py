@@ -673,10 +673,10 @@ class Handler(BaseHTTPRequestHandler):
                 c.execute('''UPDATE services SET name=?,description=?,duration_minutes=?,price=?,category_id=?,sort_order=?,is_active=? WHERE id=?''',
                     (data.get('name', row['name']).strip() if data.get('name') else row['name'],
                      data.get('description', row['description']),
-                     int(data.get('duration_minutes') or row['duration_minutes']),
-                     int(data.get('price') or row['price']),
+                     int(data['duration_minutes']) if 'duration_minutes' in data else row['duration_minutes'],
+                     int(data['price']) if 'price' in data else row['price'],
                      data.get('category_id', row['category_id']),
-                     int(data.get('sort_order') or row['sort_order']),
+                     int(data['sort_order']) if 'sort_order' in data else row['sort_order'],
                      1 if data.get('is_active', bool(row['is_active'])) else 0,
                      sid))
                 row = c.execute('SELECT * FROM services WHERE id=?', (sid,)).fetchone()
@@ -698,7 +698,7 @@ class Handler(BaseHTTPRequestHandler):
                      data.get('bio', row['bio']),
                      data.get('phone', row['phone']),
                      1 if data.get('is_active', bool(row['is_active'])) else 0,
-                     int(data.get('sort_order') or row['sort_order']),
+                     int(data['sort_order']) if 'sort_order' in data else row['sort_order'],
                      1 if data.get('show_on_site', bool(row['show_on_site']) if 'show_on_site' in dict(row) else True) else 0,
                      emp_id))
                 if data.get('service_ids') is not None:
@@ -1070,6 +1070,13 @@ class Handler(BaseHTTPRequestHandler):
             end = data.get('end_at', '')
             if not booking_id or not start:
                 return self.send_json(400, {'ok': False, 'error': 'booking_id and start_at required'})
+            try:
+                start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')) if end else None
+                if end_dt is not None and end_dt <= start_dt:
+                    raise ValueError('end must be after start')
+            except (TypeError, ValueError):
+                return self.send_json(400, {'ok': False, 'error': 'invalid appointment date range'})
             with db() as c:
                 row = c.execute('SELECT user_id FROM bookings WHERE id=?', (booking_id,)).fetchone()
                 if not row:

@@ -12,12 +12,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class UiMessage(val id: Long = System.nanoTime(), val text: String)
+
 data class CatalogUiState(
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val catalog: CatalogResponse? = null,
     val error: String? = null,
-    val toast: String? = null,
+    val message: UiMessage? = null,
 )
 
 class CatalogViewModel : ViewModel() {
@@ -48,8 +50,12 @@ class CatalogViewModel : ViewModel() {
         }
     }
 
+    private fun notify(message: String) {
+        _state.update { it.copy(message = UiMessage(text = message)) }
+    }
+
     private fun reportError(e: Exception) {
-        _state.update { it.copy(toast = e.message ?: "Помилка") }
+        notify(e.message ?: "Помилка")
     }
 
     /* ----- Services ----- */
@@ -77,8 +83,8 @@ class CatalogViewModel : ViewModel() {
                 )
                 val resp = if (id == null) ApiClient.api().createService(req)
                 else ApiClient.api().updateService(req)
-                if (resp.ok) { _state.update { it.copy(toast = "Збережено") }; load(refresh = true) }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Збережено"); load(refresh = true) }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -94,8 +100,8 @@ class CatalogViewModel : ViewModel() {
             }
             try {
                 val resp = ApiClient.api().deleteService(id)
-                if (resp.ok) { _state.update { it.copy(toast = "Видалено") } }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Видалено") }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -126,8 +132,8 @@ class CatalogViewModel : ViewModel() {
                 )
                 val resp = if (id == null) ApiClient.api().createEmployee(req)
                 else ApiClient.api().updateEmployee(req)
-                if (resp.ok) { _state.update { it.copy(toast = "Збережено") }; load(refresh = true) }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Збережено"); load(refresh = true) }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -143,8 +149,8 @@ class CatalogViewModel : ViewModel() {
             }
             try {
                 val resp = ApiClient.api().deleteEmployee(id)
-                if (resp.ok) { _state.update { it.copy(toast = "Видалено") } }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Видалено") }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -175,8 +181,8 @@ class CatalogViewModel : ViewModel() {
                 )
                 val resp = if (id == null) ApiClient.api().createShift(req)
                 else ApiClient.api().updateShift(req)
-                if (resp.ok) { _state.update { it.copy(toast = "Збережено") }; load(refresh = true) }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Збережено"); load(refresh = true) }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -192,8 +198,8 @@ class CatalogViewModel : ViewModel() {
             }
             try {
                 val resp = ApiClient.api().deleteShift(id)
-                if (resp.ok) { _state.update { it.copy(toast = "Видалено") } }
-                else { _state.update { it.copy(catalog = snapshot, toast = resp.error ?: "Помилка") } }
+                if (resp.ok) { notify("Видалено") }
+                else { _state.update { it.copy(catalog = snapshot, message = UiMessage(text = resp.error ?: "Помилка")) } }
             } catch (e: Exception) {
                 _state.update { it.copy(catalog = snapshot) }
                 reportError(e)
@@ -201,7 +207,9 @@ class CatalogViewModel : ViewModel() {
         }
     }
 
-    fun consumeToast() {
-        _state.update { it.copy(toast = null) }
+    fun consumeMessage(id: Long) {
+        _state.update { state ->
+            if (state.message?.id == id) state.copy(message = null) else state
+        }
     }
 }
