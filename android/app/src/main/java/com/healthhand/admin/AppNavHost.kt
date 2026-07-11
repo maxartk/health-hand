@@ -148,7 +148,7 @@ fun AppNavHost() {
                     }
                 })
             }
-            composable(Routes.BOOKINGS) { BookingsScreen(contentPadding = padding) }
+            composable(Routes.BOOKINGS) { BookingsScreen() }
             composable(Routes.STATS) { StatsScreen() }
             composable(Routes.CATALOG) { CatalogScreen() }
         }

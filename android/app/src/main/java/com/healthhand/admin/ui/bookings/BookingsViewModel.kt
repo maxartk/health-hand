@@ -26,6 +26,7 @@ data class BookingsUiState(
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val bookings: List<Booking> = emptyList(),
+    val employees: List<Employee> = emptyList(),
     val error: String? = null,
     val filter: BookingsStatus = BookingsStatus.ALL,
 )
@@ -48,11 +49,14 @@ class BookingsViewModel : ViewModel() {
             }
             try {
                 val resp = ApiClient.api().getBookings(status = _state.value.filter.apiValue)
+                val employees = runCatching { ApiClient.api().getCatalog().employees }
+                    .getOrDefault(_state.value.employees)
                 _state.update {
                     it.copy(
                         loading = false,
                         refreshing = false,
                         bookings = resp.bookings,
+                        employees = employees,
                         error = if (resp.ok) null else (resp.error ?: "Помилка"),
                     )
                 }

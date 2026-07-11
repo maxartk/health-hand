@@ -38,11 +38,14 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -79,6 +82,14 @@ fun CatalogScreen() {
     var showServiceDialog by remember { mutableStateOf(false) }
     var showEmployeeDialog by remember { mutableStateOf(false) }
     var showShiftDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.toast) {
+        state.toast?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.consumeToast()
+        }
+    }
 
     val tabs = listOf(
         stringResource(R.string.catalog_tab_services),
@@ -94,6 +105,7 @@ fun CatalogScreen() {
     PremiumBackdrop {
         Scaffold(
             containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
                 FloatingActionButton(onClick = {
                     when (selectedTab) {
@@ -401,6 +413,7 @@ private fun ServiceEditDialog(
     var sortOrder by remember { mutableStateOf((service?.sort_order ?: 0).toString()) }
     var isActive by remember { mutableStateOf(service?.is_active != 0) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val categoryLabel = categories.firstOrNull { it.id == categoryId }?.name ?: "Без категорії"
 
     AlertDialog(
@@ -440,9 +453,20 @@ private fun ServiceEditDialog(
                     Spacer(Modifier.fillMaxWidth(0.5f))
                     Switch(checked = isActive, onCheckedChange = { isActive = it })
                 }
+                validationError?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(name, desc, duration.toIntOrNull() ?: 60, price.toIntOrNull() ?: 0, categoryId, sortOrder.toIntOrNull() ?: 0, isActive) }) { Text("Зберегти") } },
+        confirmButton = { TextButton(onClick = {
+            val parsedDuration = duration.toIntOrNull() ?: 0
+            val parsedPrice = price.toIntOrNull() ?: 0
+            validationError = validateService(name, parsedDuration, parsedPrice)
+            if (validationError == null) {
+                onSave(name.trim(), desc.trim(), parsedDuration, parsedPrice, categoryId, sortOrder.toIntOrNull() ?: 0, isActive)
+            }
+        }) { Text("Зберегти") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Скасувати") } }
     )
 }
@@ -531,6 +555,7 @@ private fun ShiftEditDialog(
     var isActive by remember { mutableStateOf(shift?.is_active != 0) }
     var empMenuExpanded by remember { mutableStateOf(false) }
     var dayMenuExpanded by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val dayNames = listOf("Неділя", "Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота")
     val empLabel = employees.firstOrNull { it.id == empId }?.name ?: "Оберіть майстра"
 
@@ -576,9 +601,18 @@ private fun ShiftEditDialog(
                 OutlinedTextField(value = endTime, onValueChange = { endTime = it }, label = { Text("Кінець (HH:MM)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) { Text("Активна"); Spacer(Modifier.fillMaxWidth(0.5f)); Switch(checked = isActive, onCheckedChange = { isActive = it }) }
+                validationError?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(empId, weekday.coerceIn(0, 6), startTime, endTime, isActive) }) { Text("Зберегти") } },
+        confirmButton = { TextButton(onClick = {
+            validationError = validateShift(empId, startTime, endTime)
+            if (validationError == null) {
+                onSave(empId, weekday.coerceIn(0, 6), startTime, endTime, isActive)
+            }
+        }) { Text("Зберегти") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Скасувати") } }
     )
 }

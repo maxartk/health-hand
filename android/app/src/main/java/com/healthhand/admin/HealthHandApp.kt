@@ -9,5 +9,8 @@ class HealthHandApp : Application() {
         super.onCreate()
         val tokenStore = TokenStore(this)
         ApiClient.init(tokenStore)
+        tokenStore.getBaseUrl()
+            ?.takeIf { it.isNotBlank() }
+            ?.let(ApiClient::rebuild)
     }
 }
