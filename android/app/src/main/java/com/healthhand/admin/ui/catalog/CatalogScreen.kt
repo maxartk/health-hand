@@ -84,10 +84,9 @@ fun CatalogScreen() {
     var showShiftDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(state.message?.id) {
-        state.message?.let { message ->
-            vm.consumeMessage(message.id)
-            snackbarHostState.showSnackbar(message.text)
+    LaunchedEffect(Unit) {
+        vm.messages.collect { message ->
+            snackbarHostState.showSnackbar(message)
         }
     }
 

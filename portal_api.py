@@ -1070,6 +1070,9 @@ class Handler(BaseHTTPRequestHandler):
             end = data.get('end_at', '')
             if not booking_id or not start:
                 return self.send_json(400, {'ok': False, 'error': 'booking_id and start_at required'})
+            iso_datetime = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?$')
+            if not iso_datetime.fullmatch(start) or (end and not iso_datetime.fullmatch(end)):
+                return self.send_json(400, {'ok': False, 'error': 'invalid appointment date range'})
             try:
                 start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
                 end_dt = datetime.fromisoformat(end.replace('Z', '+00:00')) if end else None
@@ -1086,7 +1089,7 @@ class Handler(BaseHTTPRequestHandler):
                              VALUES(?,?,?,?,?,?,?,?)
                              ON CONFLICT(booking_id) DO UPDATE SET employee_id=excluded.employee_id, start_at=excluded.start_at, end_at=excluded.end_at, status=excluded.status''',
                     (booking_id, row['user_id'], employee_id, start, end, data.get('calendar_event_id',''), data.get('status','scheduled'), now_ts()))
-                c.execute('UPDATE bookings SET employee_id=COALESCE(?, employee_id), start_at=?, end_at=? WHERE id=?', (employee_id, start, end, booking_id))
+                c.execute('UPDATE bookings SET employee_id=?, start_at=?, end_at=? WHERE id=?', (employee_id, start, end, booking_id))
                 appt = c.execute('SELECT * FROM appointments WHERE booking_id=?', (booking_id,)).fetchone()
             notify_n8n('appointment_set', dict(appt))
             return self.send_json(201, {'ok': True, 'appointment': dict(appt)})

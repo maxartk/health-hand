@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -199,6 +200,39 @@ def main() -> None:
         if not catalog.get('ok') or not catalog.get('services'):
             fail('admin catalog', str(catalog))
         ok('admin catalog')
+
+        invalid_req = urllib.request.Request(
+            base + '/api/admin/appointments',
+            data=json.dumps({'booking_id': booking['booking_id'], 'start_at': day}).encode(),
+            method='POST',
+            headers={'Content-Type': 'application/json', **admin_headers},
+        )
+        try:
+            urllib.request.urlopen(invalid_req, timeout=10)
+            fail('appointment datetime validation', 'date-only value was accepted')
+        except urllib.error.HTTPError as exc:
+            if exc.code != 400:
+                fail('appointment datetime validation', f'unexpected HTTP {exc.code}')
+        ok('appointment datetime validation')
+
+        employee_id = catalog.get('employees', [{}])[0].get('id')
+        if employee_id:
+            appointment_payload = {
+                'booking_id': booking['booking_id'],
+                'employee_id': employee_id,
+                'start_at': first_slot['start_at'],
+                'end_at': first_slot.get('end_at', ''),
+            }
+            fetch_json(base, '/api/admin/appointments', 'POST', appointment_payload, admin_headers)
+            appointment_payload['employee_id'] = None
+            fetch_json(base, '/api/admin/appointments', 'POST', appointment_payload, admin_headers)
+            if db_path:
+                with sqlite3.connect(db_path) as conn:
+                    booking_employee = conn.execute('SELECT employee_id FROM bookings WHERE id=?', (booking['booking_id'],)).fetchone()[0]
+                    appointment_employee = conn.execute('SELECT employee_id FROM appointments WHERE booking_id=?', (booking['booking_id'],)).fetchone()[0]
+                if booking_employee is not None or appointment_employee is not None:
+                    fail('optional employee clearing', f'booking={booking_employee}, appointment={appointment_employee}')
+            ok('optional employee clearing')
 
         summary = fetch_json(base, '/api/admin/v2/events/summary?days=7', headers=admin_headers)
         if not summary.get('ok') or 'smoke_event' not in summary.get('events', {}):
