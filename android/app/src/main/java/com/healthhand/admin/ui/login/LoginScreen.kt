@@ -56,7 +56,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
     val tokenStore = remember { ApiClient.tokenStore() }
 
     var token by remember { mutableStateOf("") }
-    var baseUrl by remember { mutableStateOf(BuildConfig.BASE_URL) }
+    var baseUrl by remember { mutableStateOf(tokenStore.getBaseUrl() ?: BuildConfig.BASE_URL) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 

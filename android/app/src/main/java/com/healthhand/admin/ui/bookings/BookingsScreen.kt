@@ -23,10 +23,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -56,7 +61,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
+fun BookingsScreen() {
     val vm: BookingsViewModel = viewModel()
     val state by vm.state.collectAsState()
     var pendingDelete by remember { mutableStateOf<Booking?>(null) }
@@ -71,7 +76,6 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(contentPadding)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -143,6 +147,7 @@ fun BookingsScreen(contentPadding: PaddingValues = PaddingValues()) {
                 items(state.bookings) { booking ->
                     BookingCard(
                         booking = booking,
+                        employees = state.employees,
                         onChangeStatus = { status, note -> vm.changeStatus(booking.id, status, note) {} },
                         onAssign = { startAt, endAt, empId -> vm.assignAppointment(booking.id, startAt, endAt, empId) {} },
                         onDelete = { pendingDelete = booking },
@@ -183,6 +188,7 @@ private fun BookingFilterChip(selected: Boolean, label: String, onClick: () -> U
 @Composable
 fun BookingCard(
     booking: Booking,
+    employees: List<com.healthhand.admin.data.models.Employee> = emptyList(),
     onChangeStatus: (String, String?) -> Unit,
     onAssign: (String, String?, Int?) -> Unit,
     onDelete: () -> Unit = {},
@@ -274,6 +280,7 @@ fun BookingCard(
 
     if (showApptDialog) {
         AppointmentDialog(
+            employees = employees,
             onDismiss = { showApptDialog = false },
             onConfirm = { startAt, endAt, employeeId ->
                 onAssign(startAt, endAt, employeeId)
@@ -330,11 +337,18 @@ private fun StatusChangeDialog(currentStatus: String, onDismiss: () -> Unit, onC
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppointmentDialog(onDismiss: () -> Unit, onConfirm: (String, String?, Int?) -> Unit) {
+private fun AppointmentDialog(
+    employees: List<com.healthhand.admin.data.models.Employee>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String?, Int?) -> Unit,
+) {
     var startAt by remember { mutableStateOf("") }
     var endAt by remember { mutableStateOf("") }
-    var employeeId by remember { mutableStateOf("") }
+    var employeeId by remember { mutableStateOf<Int?>(null) }
+    var employeeMenuExpanded by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -353,17 +367,45 @@ private fun AppointmentDialog(onDismiss: () -> Unit, onConfirm: (String, String?
                     label = { Text("Кінець (опц.)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = employeeId,
-                    onValueChange = { employeeId = it },
-                    label = { Text(stringResource(R.string.bookings_employee)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                ExposedDropdownMenuBox(
+                    expanded = employeeMenuExpanded,
+                    onExpandedChange = { employeeMenuExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = employees.firstOrNull { it.id == employeeId }?.name ?: "Оберіть майстра",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.bookings_employee)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(employeeMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = employeeMenuExpanded,
+                        onDismissRequest = { employeeMenuExpanded = false },
+                    ) {
+                        employees.filter { it.is_active != 0 }.forEach { employee ->
+                            DropdownMenuItem(
+                                text = { Text(employee.name) },
+                                onClick = { employeeId = employee.id; employeeMenuExpanded = false },
+                            )
+                        }
+                    }
+                }
+                validationError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(startAt, endAt.ifBlank { null }, employeeId.toIntOrNull())
+                validationError = when {
+                    startAt.isBlank() -> "Вкажіть дату і час початку"
+                    employeeId == null -> "Оберіть майстра"
+                    else -> null
+                }
+                if (validationError == null) {
+                    onConfirm(startAt.trim(), endAt.trim().ifBlank { null }, employeeId)
+                }
             }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
