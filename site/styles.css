@@ -1701,6 +1701,12 @@ blockquote {
   bottom: 24px;
   z-index: 120;
   font-family: inherit;
+  transition: bottom 0.3s ease;
+}
+
+/* Keep the AI control clear of the floating consultation CTA. */
+.sticky-cta.visible ~ .ai-chat {
+  bottom: 124px;
 }
 .ai-chat-button {
   position: relative;
@@ -1845,6 +1851,9 @@ blockquote {
   .ai-chat {
     right: 14px;
     bottom: 18px;
+  }
+  .sticky-cta.visible ~ .ai-chat {
+    bottom: 178px;
   }
   .ai-chat-button {
     width: 62px;
