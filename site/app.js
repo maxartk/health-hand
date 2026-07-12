@@ -1,5 +1,4 @@
 // Health Hand app
-const N8N_WEBHOOK_URL = '/webhook/health-hand-booking';
 const API = '/api/portal';
 const API_V2 = '/api/v2';
 const BOOKING_API = '/api/bookings';
@@ -66,15 +65,6 @@ function trackBookingFormOpened() {
   trackEvent('form_opened');
 }
 
-async function sendToWebhook(payload) {
-  const response = await fetch(N8N_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) throw new Error(`Webhook повернув ${response.status}`);
-  return { ok: true };
-}
 
 function setMinDate() {
   const date = $('input[name="date"]');
@@ -510,10 +500,6 @@ function initBookingForm() {
       const saved = await saveBookingToBackend(payload, false);
       if (!saved) throw new Error('Не вдалося зберегти заявку');
       trackEvent('booking_submitted', { service_id: data.service_id, employee_id: data.employee_id, date: data.date, time: data.time, saved });
-
-      // Webhook is an internal automation channel. It must never show a red error to the client
-      // after the booking was saved successfully in the Health Hand database.
-      sendToWebhook(payload).catch((error) => console.warn('Booking webhook failed after save', error));
 
       setStatus(status, 'ok', portalState.user ? 'Заявку надіслано й додано в особистий кабінет.' : 'Заявку надіслано. Створіть кабінет нижче, щоб бачити історію записів.');
       form.reset();
