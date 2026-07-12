@@ -1,0 +1,15 @@
+[Unit]
+Description=Dispatch queued Health Hand automation events
+After=network-online.target health-hand-portal.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/health-hand/source
+EnvironmentFile=/etc/health-hand-portal.env
+Environment=HH_COOKIE_SECURE=0
+Environment=HH_DB=/opt/health-hand/source/portal.db
+ExecStart=/usr/bin/python3 /opt/health-hand/source/portal_api.py automation-worker --once
+NoNewPrivileges=true
+PrivateTmp=true

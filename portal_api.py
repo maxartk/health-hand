@@ -8,16 +8,21 @@ Environment:
   HH_COOKIE_SECURE   1/0 (default: 1)
   HH_SESSION_TTL     seconds (default: 30 days)
   HH_ADMIN_TOKEN     token for admin endpoints (optional)
-  HH_N8N_WEBHOOK     URL to notify on booking events (optional)
+  HH_N8N_WEBHOOK     URL to notify on booking/catalog events (optional)
+  HH_AUTOMATION_TIMEOUT           HTTP timeout in seconds for n8n delivery (default: 8)
+  HH_AUTOMATION_MAX_ATTEMPTS      attempts before an event stops auto-retrying (default: 8)
+  HH_AUTOMATION_BACKOFF_BASE      base backoff seconds for exponential retry (default: 30)
+  HH_AUTOMATION_BACKOFF_MAX       max backoff seconds between retries (default: 3600)
+  HH_AUTOMATION_WORKER_INTERVAL   seconds between worker sweeps (default: 30)
 """
-import json, sqlite3, secrets, hashlib, hmac, time, re, os
+import json, sqlite3, secrets, hashlib, hmac, time, re, os, sys, threading
 from datetime import datetime, timedelta
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, urlopen
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 BASE_DIR = Path(__file__).resolve().parent
 DB = Path(os.environ.get('HH_DB', BASE_DIR / 'portal.db'))
@@ -31,6 +36,12 @@ CHANNELS = {'WhatsApp', 'Viber', 'Telegram', 'Дзвінок', 'Email'}
 STATUS_BOOKING = {'new', 'contacted', 'confirmed', 'completed', 'cancelled', 'no_show', 'followup_sent'}
 ADMIN_TOKEN = os.environ.get('HH_ADMIN_TOKEN') or os.environ.get('HH_ADMIN_PASSWORD', '')
 N8N_WEBHOOK = os.environ.get('HH_N8N_WEBHOOK', '')
+if N8N_WEBHOOK and (urlparse(N8N_WEBHOOK).hostname or '').lower() not in {'127.0.0.1', 'localhost', '::1'}:
+    raise RuntimeError('HH_N8N_WEBHOOK must use a loopback host')
+AUTOMATION_TIMEOUT = float(os.environ.get('HH_AUTOMATION_TIMEOUT', '8'))
+AUTOMATION_MAX_ATTEMPTS = int(os.environ.get('HH_AUTOMATION_MAX_ATTEMPTS', '8'))
+AUTOMATION_BACKOFF_BASE = int(os.environ.get('HH_AUTOMATION_BACKOFF_BASE', '30'))
+AUTOMATION_BACKOFF_MAX = int(os.environ.get('HH_AUTOMATION_BACKOFF_MAX', '3600'))
 _login_failures = {}
 
 
@@ -392,6 +403,23 @@ def init_db():
         c.execute('CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_events_name_created ON events(event_name,created_at)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id,created_at)')
+        c.execute("""CREATE TABLE IF NOT EXISTS automation_events (
+            event_id TEXT PRIMARY KEY,
+            event_name TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT DEFAULT '',
+            next_attempt_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            delivered_at INTEGER
+        )""")
+        c.execute('CREATE INDEX IF NOT EXISTS idx_automation_status_next ON automation_events(status,next_attempt_at)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_automation_created ON automation_events(created_at)')
+        ensure_column(c, 'automation_events', 'claim_token', "TEXT DEFAULT ''")
+        ensure_column(c, 'automation_events', 'claimed_at', 'INTEGER')
+        c.execute("DELETE FROM automation_events WHERE status='delivered' AND delivered_at<?", (now_ts() - 30 * 86400,))
         seed_v2_defaults(c)
         c.execute('DELETE FROM sessions WHERE expires_at <= ?', (now_ts(),))
         c.execute('DELETE FROM password_resets WHERE expires_at <= ?', (now_ts(),))
@@ -428,6 +456,30 @@ def booking_public(row):
     return {k: row[k] for k in row.keys()}
 
 
+def booking_event_payload(row):
+    row = dict(row)
+    return {
+        'booking_id': row.get('id'),
+        'service': row.get('service', ''), 'service_id': row.get('service_id'), 'employee_id': row.get('employee_id'),
+        'date': row.get('date', ''), 'time': row.get('time', ''), 'status': row.get('status', ''), 'channel': row.get('channel', ''),
+    }
+
+
+def service_event_payload(row):
+    row = dict(row)
+    return {'id': row.get('id'), 'name': row.get('name', ''), 'price': row.get('price'), 'duration_minutes': row.get('duration_minutes'), 'category_id': row.get('category_id'), 'is_active': row.get('is_active')}
+
+
+def employee_event_payload(row):
+    row = dict(row)
+    return {'id': row.get('id'), 'name': row.get('name', ''), 'role': row.get('role', ''), 'is_active': row.get('is_active'), 'show_on_site': row.get('show_on_site')}
+
+
+def shift_event_payload(row):
+    row = dict(row)
+    return {'id': row.get('id'), 'employee_id': row.get('employee_id'), 'weekday': row.get('weekday'), 'start_time': row.get('start_time', ''), 'end_time': row.get('end_time', ''), 'is_active': row.get('is_active')}
+
+
 def clean_event_name(value):
     value = (value or '').strip().lower()
     return value if re.match(r'^[a-z0-9_:-]{2,64}$', value) else ''
@@ -445,6 +497,32 @@ def event_summary(conn, since_ts):
         GROUP BY service ORDER BY count DESC LIMIT 10
     """, (since_ts,))]
     return {'events': totals, 'top_services': services}
+
+
+def automation_event_public(row):
+    row = dict(row)
+    return {
+        'event_id': row['event_id'], 'event_name': row['event_name'], 'status': row['status'],
+        'attempts': row['attempts'], 'last_error': row['last_error'] or None,
+        'created_at': row['created_at'], 'updated_at': row['updated_at'],
+        'delivered_at': row.get('delivered_at'), 'next_attempt_at': row['next_attempt_at'],
+    }
+
+
+def automation_summary_data(conn):
+    counts = {'pending': 0, 'delivered': 0, 'failed': 0}
+    for row in conn.execute('SELECT status, COUNT(*) AS count FROM automation_events GROUP BY status'):
+        if row['status'] in counts:
+            counts[row['status']] = row['count']
+    last_success = conn.execute("SELECT delivered_at FROM automation_events WHERE status='delivered' ORDER BY delivered_at DESC LIMIT 1").fetchone()
+    last_failure = conn.execute("SELECT updated_at, last_error FROM automation_events WHERE status='failed' ORDER BY updated_at DESC LIMIT 1").fetchone()
+    return {
+        'configured': bool(N8N_WEBHOOK),
+        'counts': counts,
+        'last_success_at': last_success['delivered_at'] if last_success else None,
+        'last_failure_at': last_failure['updated_at'] if last_failure else None,
+        'last_error': last_failure['last_error'] if last_failure else None,
+    }
 
 
 def remote_ip(handler):
@@ -483,18 +561,129 @@ def clear_cookie():
     return f'hh_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{secure}'
 
 
-def notify_n8n(event, payload):
-    if not N8N_WEBHOOK:
-        return
+def enqueue_automation_event(conn, event_name, payload):
+    event_id = secrets.token_hex(16)
+    ts = now_ts()
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+    if len(payload_json.encode('utf-8')) > 16_384:
+        raise ValueError('payload_too_large')
+    conn.execute('''INSERT INTO automation_events(event_id,event_name,payload_json,status,attempts,last_error,next_attempt_at,created_at,updated_at)
+                     VALUES(?,?,?,?,?,?,?,?,?)''',
+        (event_id, event_name, payload_json, 'pending', 0, '', ts, ts, ts))
+    return event_id
+
+
+def sanitize_dispatch_error(exc):
+    """Map delivery exceptions to short, non-sensitive codes (never leak the webhook URL)."""
+    if isinstance(exc, ValueError) and str(exc) == 'invalid_ack':
+        return 'invalid_ack'
+    if isinstance(exc, HTTPError):
+        return f'http_{exc.code}'
+    if isinstance(exc, URLError):
+        reason = str(exc.reason).lower()
+        if 'timed out' in reason or isinstance(exc.reason, TimeoutError):
+            return 'timeout'
+        return 'network_error'
+    if isinstance(exc, TimeoutError):
+        return 'timeout'
+    return 'delivery_error'
+
+
+def dispatch_automation_event(conn, event_id):
+    """Atomically lease one event, release SQLite before HTTP, then finalize only our lease."""
+    conn.commit()
+    token = secrets.token_hex(16)
+    now = now_ts()
+    stale_before = now - max(60, int(AUTOMATION_TIMEOUT * 3))
     try:
-        body = json.dumps({'event': event, 'data': payload, 'ts': now_ts()}, ensure_ascii=False).encode()
-        req = Request(N8N_WEBHOOK, data=body, headers={'Content-Type': 'application/json'}, method='POST')
-        with urlopen(req, timeout=10) as resp:
-            resp.read()
-    except URLError as e:
-        print(f'n8n notify error: {e}', flush=True)
-    except Exception as e:
-        print(f'n8n notify error: {e}', flush=True)
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT * FROM automation_events WHERE event_id=?', (event_id,)).fetchone()
+        eligible = bool(row) and row['status'] != 'delivered' and row['attempts'] < AUTOMATION_MAX_ATTEMPTS and (
+            row['status'] in ('pending', 'failed') or (row['status'] == 'processing' and (row['claimed_at'] or 0) <= stale_before)
+        )
+        if not eligible:
+            conn.rollback()
+            return False
+        attempts = row['attempts'] + 1
+        changed = conn.execute("""UPDATE automation_events SET status='processing', attempts=?, claim_token=?, claimed_at=?, updated_at=?
+                                  WHERE event_id=? AND attempts=? AND status=?""",
+            (attempts, token, now, now, event_id, row['attempts'], row['status'])).rowcount
+        if changed != 1:
+            conn.rollback()
+            return False
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    error = None
+    if not N8N_WEBHOOK:
+        error = 'not_configured'
+    else:
+        try:
+            payload = json.loads(row['payload_json'])
+            body = json.dumps({'event': row['event_name'], 'data': payload, 'event_id': event_id, 'ts': now_ts()}, ensure_ascii=False).encode()
+            req = Request(N8N_WEBHOOK, data=body, headers={'Content-Type': 'application/json', 'X-Event-Id': event_id}, method='POST')
+            with urlopen(req, timeout=AUTOMATION_TIMEOUT) as resp:
+                ack = json.loads(resp.read().decode() or '{}')
+            if ack.get('accepted') is not True or ack.get('event_id') != event_id:
+                raise ValueError('invalid_ack')
+        except Exception as exc:
+            error = sanitize_dispatch_error(exc)
+
+    finished = now_ts()
+    if error is None:
+        finalized = conn.execute("""UPDATE automation_events SET status='delivered', last_error='', updated_at=?, delivered_at=?, claim_token='', claimed_at=NULL
+                        WHERE event_id=? AND claim_token=? AND status='processing'""",
+            (finished, finished, event_id, token)).rowcount
+        conn.commit()
+        return finalized == 1
+    delay_power = min(max(attempts - 1, 0), 20)
+    delay = min(AUTOMATION_BACKOFF_BASE * (2 ** delay_power), AUTOMATION_BACKOFF_MAX)
+    conn.execute("""UPDATE automation_events SET status='failed', last_error=?, next_attempt_at=?, updated_at=?, claim_token='', claimed_at=NULL
+                    WHERE event_id=? AND claim_token=? AND status='processing'""",
+        (error, finished + delay, finished, event_id, token))
+    conn.commit()
+    return False
+
+
+def dispatch_pending_events(limit=20):
+    """Dispatch due events; each HTTP call runs outside any SQLite write transaction."""
+    with db() as c:
+        rows = c.execute("""SELECT event_id FROM automation_events
+                             WHERE ((status IN ('pending','failed') AND next_attempt_at<=?)
+                                OR (status='processing' AND COALESCE(claimed_at,0)<=?))
+                               AND attempts < ?
+                             ORDER BY next_attempt_at LIMIT ?""",
+            (now_ts(), now_ts() - max(60, int(AUTOMATION_TIMEOUT * 3)), AUTOMATION_MAX_ATTEMPTS, limit)).fetchall()
+    checked = delivered = failed = 0
+    for row in rows:
+        with db() as c:
+            result = dispatch_automation_event(c, row['event_id'])
+        if result:
+            checked += 1; delivered += 1
+        else:
+            with db() as c:
+                current = c.execute('SELECT status FROM automation_events WHERE event_id=?', (row['event_id'],)).fetchone()
+            if current and current['status'] == 'failed':
+                checked += 1; failed += 1
+    return {'checked': checked, 'delivered': delivered, 'failed': failed}
+
+
+def emit_automation_event(event_name, payload):
+    """Enqueue durably and attempt asynchronously; the queue remains authoritative."""
+    with db() as c:
+        event_id = enqueue_automation_event(c, event_name, payload)
+
+    def _attempt():
+        try:
+            with db() as c2:
+                dispatch_automation_event(c2, event_id)
+        except Exception:
+            pass
+
+    threading.Thread(target=_attempt, daemon=True).start()
+    return event_id
 
 
 def require_admin(handler):
@@ -651,6 +840,21 @@ class Handler(BaseHTTPRequestHandler):
             with db() as c:
                 summary = event_summary(c, since)
             return self.send_json(200, {'ok': True, 'days': days, **summary})
+        if path == '/api/admin/v2/automation/summary':
+            if not require_admin(self):
+                return
+            with db() as c:
+                summary = automation_summary_data(c)
+            return self.send_json(200, {'ok': True, **summary})
+        if path == '/api/admin/v2/automation/events':
+            if not require_admin(self):
+                return
+            q = parse_qs(urlparse(self.path).query)
+            limit_raw = (q.get('limit') or ['20'])[0]
+            limit = max(1, min(int(limit_raw) if limit_raw.isdigit() else 20, 100))
+            with db() as c:
+                rows = c.execute('SELECT * FROM automation_events ORDER BY created_at DESC LIMIT ?', (limit,)).fetchall()
+            return self.send_json(200, {'ok': True, 'events': [automation_event_public(r) for r in rows]})
         return self.send_json(404, {'ok': False, 'error': 'not_found'})
 
     def do_PUT(self):
@@ -680,6 +884,7 @@ class Handler(BaseHTTPRequestHandler):
                      1 if data.get('is_active', bool(row['is_active'])) else 0,
                      sid))
                 row = c.execute('SELECT * FROM services WHERE id=?', (sid,)).fetchone()
+                enqueue_automation_event(c, 'service_updated', service_event_payload(row))
             return self.send_json(200, {'ok': True, 'service': dict(row)})
 
         if path == '/api/admin/v2/employees':
@@ -706,6 +911,7 @@ class Handler(BaseHTTPRequestHandler):
                     for sid in data.get('service_ids') or []:
                         c.execute('INSERT OR IGNORE INTO employee_services(employee_id,service_id,created_at) VALUES(?,?,?)', (emp_id, int(sid), now_ts()))
                 row = c.execute('SELECT * FROM employees WHERE id=?', (emp_id,)).fetchone()
+                enqueue_automation_event(c, 'employee_updated', employee_event_payload(row))
             return self.send_json(200, {'ok': True, 'employee': dict(row)})
 
         if path == '/api/admin/v2/shifts':
@@ -727,6 +933,7 @@ class Handler(BaseHTTPRequestHandler):
                     (int(data.get('employee_id') or row['employee_id']), weekday, start, end,
                      1 if data.get('is_active', bool(row['is_active'])) else 0, shift_id))
                 row = c.execute('SELECT * FROM employee_shifts WHERE id=?', (shift_id,)).fetchone()
+                enqueue_automation_event(c, 'shift_updated', shift_event_payload(row))
             return self.send_json(200, {'ok': True, 'shift': dict(row)})
 
         return self.send_json(404, {'ok': False, 'error': 'not_found'})
@@ -753,6 +960,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json(404, {'ok': False, 'error': 'not found'})
                 c.execute('DELETE FROM appointments WHERE booking_id=?', (booking_id,))
                 c.execute('DELETE FROM bookings WHERE id=?', (booking_id,))
+                enqueue_automation_event(c, 'booking_deleted', {'booking_id': booking_id, 'service': row['service'], 'status': row['status']})
             return self.send_json(200, {'ok': True, 'deleted': booking_id})
 
         if path == '/api/admin/v2/services':
@@ -775,6 +983,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('DELETE FROM services WHERE id=?', (sid,))
                 else:
                     c.execute('UPDATE services SET is_active=0 WHERE id=?', (sid,))
+                enqueue_automation_event(c, 'service_disabled', service_event_payload(row) | {'is_active': 0, 'hard': bool(hard)})
             return self.send_json(200, {'ok': True, 'deleted': sid, 'hard': bool(hard)})
 
         if path == '/api/admin/v2/employees':
@@ -798,6 +1007,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('DELETE FROM employees WHERE id=?', (emp_id,))
                 else:
                     c.execute('UPDATE employees SET is_active=0 WHERE id=?', (emp_id,))
+                enqueue_automation_event(c, 'employee_disabled', employee_event_payload(row) | {'is_active': 0, 'hard': bool(hard)})
             return self.send_json(200, {'ok': True, 'deleted': emp_id, 'hard': bool(hard)})
 
         if path == '/api/admin/v2/shifts':
@@ -815,6 +1025,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not row:
                     return self.send_json(404, {'ok': False, 'error': 'not found'})
                 c.execute('DELETE FROM employee_shifts WHERE id=?', (shift_id,))
+                enqueue_automation_event(c, 'shift_deleted', shift_event_payload(row))
             return self.send_json(200, {'ok': True, 'deleted': shift_id})
 
         return self.send_json(404, {'ok': False, 'error': 'not_found'})
@@ -865,7 +1076,7 @@ class Handler(BaseHTTPRequestHandler):
                     c.execute('UPDATE bookings SET user_id=? WHERE user_id IS NULL AND lead_contact=?', (uid, contact))
                     user = c.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
                     bookings = [dict(x) for x in c.execute('SELECT * FROM bookings WHERE user_id=? ORDER BY id DESC LIMIT 50', (uid,))]
-                notify_n8n('user_registered', {'user_id': uid, 'contact': contact, 'name': name})
+                    enqueue_automation_event(c, 'user_registered', {'user_id': uid, 'channel': channel})
                 return self.send_json(201, {'ok': True, 'user': public_user(user), 'bookings': bookings}, session_cookie(token))
             except sqlite3.IntegrityError:
                 return self.send_json(409, {'ok': False, 'error': 'Такий контакт уже зареєстрований. Увійдіть у кабінет.'})
@@ -910,15 +1121,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             channel = clean_channel(data.get('channel') or user['channel'])
             with db() as c:
-                c.execute('''INSERT INTO bookings(user_id,external_id,lead_name,lead_contact,service,service_id,employee_id,start_at,end_at,date,time,note,channel,status,webhook_ok,created_at)
+                cur = c.execute('''INSERT INTO bookings(user_id,external_id,lead_name,lead_contact,service,service_id,employee_id,start_at,end_at,date,time,note,channel,status,webhook_ok,created_at)
                              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                     (user['id'], data.get('id',''), user['name'], user['contact'], data.get('service','Масаж'),
                      int(data.get('service_id')) if str(data.get('service_id','')).isdigit() else None,
                      int(data.get('employee_id')) if str(data.get('employee_id','')).isdigit() else None,
                      data.get('start_at',''), data.get('end_at',''), data.get('date',''), data.get('time',''), data.get('note',''), channel, clean_status(data.get('status')), 1 if data.get('webhookOk') else 0, now_ts()))
-                booking_id = c.lastrowid
+                booking_id = cur.lastrowid
                 bookings = [dict(x) for x in c.execute('SELECT * FROM bookings WHERE user_id=? ORDER BY id DESC LIMIT 50', (user['id'],))]
-            notify_n8n('booking_created', {'booking_id': booking_id, 'user_id': user['id'], 'contact': user['contact']})
+                enqueue_automation_event(c, 'booking_created', {'booking_id': booking_id, 'service': data.get('service','Масаж'), 'service_id': data.get('service_id'), 'employee_id': data.get('employee_id'), 'channel': channel})
             return self.send_json(201, {'ok': True, 'booking_id': booking_id, 'bookings': bookings})
 
         if path == '/api/portal/intake':
@@ -971,6 +1182,7 @@ class Handler(BaseHTTPRequestHandler):
                                    VALUES(?,?,?,?,?,?,?,?)""",
                     (name, data.get('description',''), int(data.get('duration_minutes') or 60), int(data.get('price') or 0), data.get('category_id'), int(data.get('sort_order') or 0), 1 if data.get('is_active', True) else 0, now_ts()))
                 row = c.execute('SELECT * FROM services WHERE id=?', (cur.lastrowid,)).fetchone()
+                enqueue_automation_event(c, 'service_created', service_event_payload(row))
             return self.send_json(201, {'ok': True, 'service': dict(row)})
 
         if path == '/api/admin/v2/employees':
@@ -987,6 +1199,7 @@ class Handler(BaseHTTPRequestHandler):
                 for sid in data.get('service_ids') or []:
                     c.execute('INSERT OR IGNORE INTO employee_services(employee_id,service_id,created_at) VALUES(?,?,?)', (employee_id, int(sid), now_ts()))
                 row = c.execute('SELECT * FROM employees WHERE id=?', (employee_id,)).fetchone()
+                enqueue_automation_event(c, 'employee_created', employee_event_payload(row))
             return self.send_json(201, {'ok': True, 'employee': dict(row)})
 
         if path == '/api/admin/v2/shifts':
@@ -1003,6 +1216,7 @@ class Handler(BaseHTTPRequestHandler):
                                    VALUES(?,?,?,?,?,?)""",
                     (employee_id, weekday, start, end, 1 if data.get('is_active', True) else 0, now_ts()))
                 row = c.execute('SELECT * FROM employee_shifts WHERE id=?', (cur.lastrowid,)).fetchone()
+                enqueue_automation_event(c, 'shift_created', shift_event_payload(row))
             return self.send_json(201, {'ok': True, 'shift': dict(row)})
 
         if path == '/api/bookings':
@@ -1040,7 +1254,7 @@ class Handler(BaseHTTPRequestHandler):
                              VALUES(?,?,?,?,?,?,?,?,?,?)''',
                     ('booking_submitted', data.get('session_id',''), user_id, booking_id, service_id, employee_id,
                      data.get('page',''), data.get('source','site'), json.dumps({'channel': channel, 'service': service}, ensure_ascii=False), now_ts()))
-            notify_n8n('booking_created', dict(booking_row))
+                enqueue_automation_event(c, 'booking_created', booking_event_payload(booking_row))
             return self.send_json(201, {'ok': True, 'booking_id': booking_id, 'linked': bool(user_id)})
 
         if path == '/api/admin/bookings/status':
@@ -1059,7 +1273,7 @@ class Handler(BaseHTTPRequestHandler):
                 if status in ('cancelled', 'no_show'):
                     c.execute('UPDATE appointments SET status=? WHERE booking_id=?', (status, booking_id))
                 row = c.execute('SELECT * FROM bookings WHERE id=?', (booking_id,)).fetchone()
-            notify_n8n('booking_status_changed', dict(row))
+                enqueue_automation_event(c, 'booking_status_changed', {k:v for k,v in booking_event_payload(row).items() if k not in {'lead_name','lead_contact'}})
             return self.send_json(200, {'ok': True, 'booking': dict(row)})
 
         if path == '/api/admin/appointments':
@@ -1088,7 +1302,7 @@ class Handler(BaseHTTPRequestHandler):
                     (booking_id, row['user_id'], employee_id, start, end, data.get('calendar_event_id',''), data.get('status','scheduled'), now_ts()))
                 c.execute('UPDATE bookings SET employee_id=COALESCE(?, employee_id), start_at=?, end_at=? WHERE id=?', (employee_id, start, end, booking_id))
                 appt = c.execute('SELECT * FROM appointments WHERE booking_id=?', (booking_id,)).fetchone()
-            notify_n8n('appointment_set', dict(appt))
+                enqueue_automation_event(c, 'appointment_set', {'booking_id': appt['booking_id'], 'employee_id': appt['employee_id'], 'start_at': appt['start_at'], 'end_at': appt['end_at'], 'status': appt['status']})
             return self.send_json(201, {'ok': True, 'appointment': dict(appt)})
 
         if path == '/api/admin/care-plan':
@@ -1098,18 +1312,50 @@ class Handler(BaseHTTPRequestHandler):
             if not user_id:
                 return self.send_json(400, {'ok': False, 'error': 'user_id required'})
             with db() as c:
-                c.execute('''INSERT INTO care_plans(user_id,booking_id,recommendation,next_service,next_date,exercises,notes,created_at)
+                cur = c.execute('''INSERT INTO care_plans(user_id,booking_id,recommendation,next_service,next_date,exercises,notes,created_at)
                              VALUES(?,?,?,?,?,?,?,?)''',
                     (user_id, data.get('booking_id'), data.get('recommendation',''), data.get('next_service',''), data.get('next_date',''), data.get('exercises',''), data.get('notes',''), now_ts()))
-                plan = c.execute('SELECT * FROM care_plans WHERE id=?', (c.lastrowid,)).fetchone()
-            notify_n8n('care_plan_created', dict(plan))
+                plan = c.execute('SELECT * FROM care_plans WHERE id=?', (cur.lastrowid,)).fetchone()
+                enqueue_automation_event(c, 'care_plan_created', {'care_plan_id': plan['id'], 'user_id': plan['user_id'], 'booking_id': plan['booking_id'], 'next_service': plan['next_service'], 'next_date': plan['next_date']})
             return self.send_json(201, {'ok': True, 'care_plan': dict(plan)})
+
+        if path == '/api/admin/v2/automation/retry':
+            if not require_admin(self):
+                return
+            event_id = (data.get('event_id') or '').strip()
+            if not event_id:
+                return self.send_json(400, {'ok': False, 'error': 'event_id required'})
+            with db() as c:
+                row = c.execute('SELECT * FROM automation_events WHERE event_id=?', (event_id,)).fetchone()
+                if not row:
+                    return self.send_json(404, {'ok': False, 'error': 'not found'})
+                if row['status'] != 'failed':
+                    return self.send_json(400, {'ok': False, 'error': 'event is not in a failed state'})
+                c.execute("UPDATE automation_events SET status='pending', attempts=0, next_attempt_at=?, last_error='', claim_token='', claimed_at=NULL WHERE event_id=?", (now_ts(), event_id))
+            with db() as c:
+                delivered = dispatch_automation_event(c, event_id)
+                row = c.execute('SELECT * FROM automation_events WHERE event_id=?', (event_id,)).fetchone()
+            return self.send_json(200, {'ok': delivered, 'error': None if delivered else 'delivery_failed', 'event': automation_event_public(row)})
+
+        if path == '/api/admin/v2/automation/test':
+            if not require_admin(self):
+                return
+            with db() as c:
+                event_id = enqueue_automation_event(c, 'automation_test', {'triggered_by': 'admin', 'ts': now_ts()})
+            with db() as c:
+                delivered = dispatch_automation_event(c, event_id)
+                row = c.execute('SELECT * FROM automation_events WHERE event_id=?', (event_id,)).fetchone()
+            return self.send_json(201, {'ok': delivered, 'error': None if delivered else 'delivery_failed', 'event': automation_event_public(row)})
 
         return self.send_json(404, {'ok': False, 'error': 'not_found'})
 
 
 if __name__ == '__main__':
     init_db()
+    if len(sys.argv) > 1 and sys.argv[1] == 'automation-worker':
+        result = dispatch_pending_events()
+        print('checked={checked} delivered={delivered} failed={failed}'.format(**result), flush=True)
+        raise SystemExit(0)
     host = os.environ.get('HH_HOST', '127.0.0.1')
     port = int(os.environ.get('HH_PORT', '8787'))
     print(f'Health Hand API listening on http://{host}:{port}', flush=True)

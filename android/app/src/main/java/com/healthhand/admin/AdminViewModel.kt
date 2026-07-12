@@ -22,6 +22,9 @@ data class AppState(
     val bookings: List<Booking> = emptyList(),
     val bookingsLoading: Boolean = false,
     val stats: EventsSummaryResponse? = null,
+    val automationSummary: AutomationSummaryResponse? = null,
+    val automationEvents: List<AutomationEvent> = emptyList(),
+    val automationLoading: Boolean = false,
     val busy: Boolean = false
 )
 
@@ -120,10 +123,29 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { repo.stats() }.onSuccess { response -> _state.update { it.copy(stats = response) } }.onFailure { failure(it) }
     }
 
+    fun loadAutomation() = viewModelScope.launch {
+        _state.update { it.copy(automationLoading = true) }
+        runCatching { repo.automationSummary() to repo.automationEvents().events }
+            .onSuccess { (summary, events) -> _state.update { it.copy(automationSummary = summary, automationEvents = events, automationLoading = false) } }
+            .onFailure { failure(it) }
+    }
+
+    fun retryAutomation(eventId: String) = automationAction("Повторний запуск виконано") { repo.retryAutomation(eventId) }
+    fun testAutomation() = automationAction("Тестову подію надіслано") { repo.testAutomation() }
+    private fun automationAction(notice: String, block: suspend () -> Any) = viewModelScope.launch {
+        _state.update { it.copy(busy = true) }
+        runCatching { block(); repo.automationSummary() to repo.automationEvents().events }
+            .onSuccess { (summary, events) ->
+                _state.update { it.copy(busy = false, automationSummary = summary, automationEvents = events) }
+                _events.send(UiEvent(notice))
+            }
+            .onFailure { failure(it) }
+    }
+
     private fun failure(error: Throwable, catalogFailure: Boolean = false) {
         val message = userMessageFor(error.httpCode(), error) ?: "Не вдалося виконати дію. Спробуйте ще раз."
         if (error.httpCode() == 403) { repo.logout(); _state.value = AppState(loginError = message); return }
-        _state.update { current -> current.copy(busy = false, bookingsLoading = false, catalog = if (catalogFailure) reduceCatalog(current.catalog, CatalogEvent.Failed(message)) else current.catalog) }
+        _state.update { current -> current.copy(busy = false, bookingsLoading = false, automationLoading = false, catalog = if (catalogFailure) reduceCatalog(current.catalog, CatalogEvent.Failed(message)) else current.catalog) }
         viewModelScope.launch { _events.send(UiEvent(message)) }
     }
 }

@@ -31,6 +31,10 @@ interface AdminApi {
  @POST("api/admin/bookings/status") suspend fun status(@Body r:StatusChangeRequest):StatusChangeResponse
  @DELETE("api/admin/bookings") suspend fun deleteBooking(@Query("id") id:Int):DeleteResponse
  @GET("api/admin/v2/events/summary") suspend fun stats(@Query("days") days:Int=7):EventsSummaryResponse
+ @GET("api/admin/v2/automation/summary") suspend fun automationSummary():AutomationSummaryResponse
+ @GET("api/admin/v2/automation/events") suspend fun automationEvents(@Query("limit") limit:Int=30):AutomationEventsResponse
+ @POST("api/admin/v2/automation/retry") suspend fun retryAutomation(@Body r:AutomationRetryRequest):AutomationActionResponse
+ @POST("api/admin/v2/automation/test") suspend fun testAutomation():AutomationActionResponse
 }
 
 class SecureCredentialStore(context:Context){
@@ -68,6 +72,10 @@ class AdminRepository(private val store:SecureCredentialStore){
  suspend fun status(id:Int,status:String,note:String)=api.status(StatusChangeRequest(id,status,note)).requireOk()
  suspend fun deleteBooking(id:Int)=api.deleteBooking(id).requireOk()
  suspend fun stats()=api.stats().requireOk()
+ suspend fun automationSummary()=api.automationSummary().requireOk()
+ suspend fun automationEvents()=api.automationEvents().requireOk()
+ suspend fun retryAutomation(eventId:String)=api.retryAutomation(AutomationRetryRequest(eventId)).requireOk()
+ suspend fun testAutomation()=api.testAutomation().requireOk()
 }
 private fun apiFailure(error:String?):Nothing=throw IllegalStateException(error?:"Сервер відхилив дію")
 private fun CatalogResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
@@ -79,4 +87,7 @@ private fun DeleteResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 private fun BookingsResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 private fun StatusChangeResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 private fun EventsSummaryResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
+private fun AutomationSummaryResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
+private fun AutomationEventsResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
+private fun AutomationActionResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 fun Throwable.httpCode()=(this as? HttpException)?.code()
