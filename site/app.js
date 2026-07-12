@@ -213,15 +213,40 @@ async function loadBookingServices() {
   const form = $('#bookingForm');
   if (!form) return;
   const serviceSelect = form.elements.service;
+  const cacheKey = 'hh_services_cache_v1';
   try {
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+    if (Array.isArray(cached) && cached.length) {
+      bookingCatalog.services = cached;
+      renderApiDrivenSiteBlocks();
+      renderServiceOptions(form);
+    } else {
+      setSelectLoading(serviceSelect, 'Завантажую послуги…');
+    }
+  } catch {
     setSelectLoading(serviceSelect, 'Завантажую послуги…');
-    const data = await apiFetch(`${API_V2}/services`);
-    bookingCatalog.services = data.services || [];
-    renderApiDrivenSiteBlocks();
-    renderServiceOptions(form);
-  } catch (error) {
-    console.warn('Services API failed', error);
-    if (serviceSelect) serviceSelect.disabled = false;
+  }
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const data = await apiFetch(`${API_V2}/services`);
+      bookingCatalog.services = data.services || [];
+      if (!bookingCatalog.services.length) throw new Error('Каталог тимчасово порожній');
+      try { localStorage.setItem(cacheKey, JSON.stringify(bookingCatalog.services)); } catch {}
+      renderApiDrivenSiteBlocks();
+      renderServiceOptions(form);
+      const count = $('#catalogServiceCount');
+      if (count) count.textContent = String(bookingCatalog.services.length);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** attempt), 8000)));
+    }
+  }
+  console.warn('Services API failed after retries', lastError);
+  if (serviceSelect) {
+    serviceSelect.disabled = !bookingCatalog.services.length;
+    if (!bookingCatalog.services.length) serviceSelect.innerHTML = '<option value="">Каталог тимчасово оновлюється — спробуйте ще раз</option>';
   }
 }
 
