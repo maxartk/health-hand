@@ -31,7 +31,7 @@
         <div class="portal-copy reveal">
           <p class="eyebrow dark">Особистий кабінет</p>
           <h2 id="portal-title">Реєстрація, історія записів і персональна комунікація.</h2>
-          <p class="body-lg">Клієнт створює акаунт, входить за паролем, бачить свої заявки, обирає WhatsApp/Viber/Telegram і швидко повторює запис.</p>
+          <p class="body-lg">Клієнт створює акаунт, входить за паролем, бачить свої заявки, обирає Telegram, телефон або email і швидко повторює запис.</p>
           <div class="portal-benefits">
             <span>реєстрація та вхід</span>
             <span>серверна історія заявок</span>
@@ -47,9 +47,10 @@
             </div>
             <form id="registerForm" class="profile-form auth-panel active" data-auth-panel="register" autocomplete="off">
               <label>Ім’я<input name="name" autocomplete="name" required /></label>
-              <label>Телефон або email<input name="contact" autocomplete="username" required placeholder="+380 ... / email" /></label>
+              <label><span data-contact-label>Telegram-контакт</span><input name="contact" autocomplete="username" required placeholder="Номер телефону або @username" aria-describedby="registerContactHelp" /></label>
+              <small id="registerContactHelp" data-contact-help>Для повідомлень у Telegram потрібно спочатку самостійно запустити бота салону. Посилання на бота надасть адміністратор.</small>
               <label>Пароль<input name="password" type="password" autocomplete="new-password" required minlength="8" placeholder="Мінімум 8 символів" /></label>
-              <label>Основний канал<select name="channel" required><option>WhatsApp</option><option>Viber</option><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
+              <label>Основний канал<select name="channel" required><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
               <label class="consent-line"><input name="reminders" type="checkbox" checked /> <span>Надсилати нагадування й рекомендації після процедури.</span></label>
               <button class="btn btn-primary full" type="submit">Зареєструватися</button>
             </form>
@@ -90,7 +91,7 @@
             <div class="portal-panel" data-portal-panel="profile">
               <form id="clientProfileForm" class="profile-form">
                 <div class="form-row"><label>Ім’я<input name="name" autocomplete="name" required /></label><label>Дата народження<input name="birthday" type="date" /></label></div>
-                <label>Основний канал<select name="channel" required><option>WhatsApp</option><option>Viber</option><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
+                <label>Основний канал<select name="channel" required><option>Telegram</option><option>Дзвінок</option><option>Email</option></select></label>
                 <label>Що важливо знати майстру<textarea name="notes" rows="3" placeholder="Біль у спині, шия, травми, протипоказання..."></textarea></label>
                 <label class="consent-line"><input name="reminders" type="checkbox" checked /> <span>Надсилати нагадування про візит і рекомендації після процедури.</span></label>
                 <button class="btn btn-primary full" type="submit">Оновити профіль</button>
@@ -135,6 +136,6 @@
       <div><span>Контакт</span><p>Умань, Україна</p></div>
     </div>
   </footer>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20260712-communication-v2"></script>
 </body>
 </html>

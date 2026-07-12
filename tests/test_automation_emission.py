@@ -23,8 +23,15 @@ def test_user_registration_emits_automation_event_without_password(server):
 
 def test_public_booking_creation_emits_event_and_succeeds_when_n8n_unreachable(server):
     base, portal = server('http://127.0.0.1:1')  # unreachable webhook
+    with portal.db() as c:
+        employee_id = c.execute(
+            "INSERT INTO employees(name,created_at) VALUES(?,?)",
+            ('Олена Майстер', portal.now_ts()),
+        ).lastrowid
     status, resp = fetch_json(base, '/api/bookings', 'POST', {
-        'name': 'Клієнт Без Кабінету', 'contact': 'lead@example.com', 'service': 'Класичний масаж'
+        'name': 'Клієнт Без Кабінету', 'contact': 'lead@example.com',
+        'service': 'Класичний масаж', 'date': '2026-07-20', 'time': '14:30',
+        'channel': 'Email', 'note': 'Прошу зосередитися на спині', 'employee_id': employee_id,
     })
     assert status == 201, resp
     assert resp['ok'] is True
@@ -32,10 +39,20 @@ def test_public_booking_creation_emits_event_and_succeeds_when_n8n_unreachable(s
 
     with portal.db() as c:
         row = c.execute("SELECT * FROM automation_events WHERE event_name='booking_created'").fetchone()
+        confirmation = c.execute("SELECT * FROM automation_events WHERE event_name='customer_confirmation_requested'").fetchone()
     assert row is not None
+    assert confirmation is not None
     payload = __import__('json').loads(row['payload_json'])
     assert payload['booking_id'] == booking_id
     assert payload['service'] == 'Класичний масаж'
+    assert payload['lead_name'] == 'Клієнт Без Кабінету'
+    assert payload['lead_contact'] == 'lead@example.com'
+    assert payload['note'] == 'Прошу зосередитися на спині'
+    assert payload['date'] == '2026-07-20'
+    assert payload['time'] == '14:30'
+    assert payload['channel'] == 'Email'
+    assert payload['employee_id'] == employee_id
+    assert payload['employee_name'] == 'Олена Майстер'
 
     # booking row itself must exist regardless of n8n reachability
     with portal.db() as c:
@@ -69,6 +86,49 @@ def test_portal_booking_creation_emits_event(server):
         row = c.execute("SELECT * FROM automation_events WHERE event_name='booking_created' AND payload_json LIKE ?",
                          (f'%{booking_id}%',)).fetchone()
     assert row is not None
+
+
+def test_removed_channels_are_rejected_for_new_requests(server):
+    base, _portal = server()
+
+    for channel in ('WhatsApp', 'Viber'):
+        status, response = fetch_json(base, '/api/bookings', 'POST', {
+            'name': 'Новий Клієнт', 'contact': 'client@example.com',
+            'service': 'Масаж', 'channel': channel,
+        })
+        assert status == 400, response
+
+        status, response = fetch_json(base, '/api/portal/register', 'POST', {
+            'name': 'Новий Клієнт', 'contact': f'{channel.lower()}@example.com',
+            'password': 'supersecret123', 'channel': channel,
+        })
+        assert status == 400, response
+
+
+def test_removed_channels_are_rejected_for_profile_updates(server):
+    import http.cookiejar
+    import urllib.error
+    import urllib.request
+
+    base, _portal = server()
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    register = urllib.request.Request(base + '/api/portal/register', data=_json.dumps({
+        'name': 'Клієнт Профілю', 'contact': 'profile@example.com',
+        'password': 'supersecret123', 'channel': 'Telegram',
+    }).encode(), headers={'Content-Type': 'application/json'}, method='POST')
+    with opener.open(register, timeout=5) as response:
+        assert response.status == 201
+
+    for channel in ('WhatsApp', 'Viber'):
+        update = urllib.request.Request(base + '/api/portal/profile', data=_json.dumps({
+            'name': 'Клієнт Профілю', 'channel': channel,
+        }).encode(), headers={'Content-Type': 'application/json'}, method='POST')
+        try:
+            opener.open(update, timeout=5)
+            assert False, f'{channel} profile update unexpectedly succeeded'
+        except urllib.error.HTTPError as error:
+            assert error.code == 400
 
 
 

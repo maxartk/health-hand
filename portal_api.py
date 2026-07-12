@@ -32,7 +32,7 @@ PBKDF2_ITERS = 210_000
 COOKIE_SECURE = os.environ.get('HH_COOKIE_SECURE', '1').lower() not in {'0', 'false', 'no'}
 LOGIN_WINDOW = 15 * 60
 LOGIN_LIMIT = 8
-CHANNELS = {'WhatsApp', 'Viber', 'Telegram', 'Дзвінок', 'Email'}
+CHANNELS = {'Telegram', 'Дзвінок', 'Email'}
 STATUS_BOOKING = {'new', 'contacted', 'confirmed', 'completed', 'cancelled', 'no_show', 'followup_sent'}
 ADMIN_TOKEN = os.environ.get('HH_ADMIN_TOKEN') or os.environ.get('HH_ADMIN_PASSWORD', '')
 N8N_WEBHOOK = os.environ.get('HH_N8N_WEBHOOK', '')
@@ -51,7 +51,12 @@ def now_ts():
 
 def clean_channel(value):
     value = (value or '').strip()
-    return value if value in CHANNELS else 'Дзвінок'
+    return value if value in CHANNELS else 'Telegram'
+
+
+def requested_channel(value, default='Telegram'):
+    channel = (value or default).strip()
+    return channel if channel in CHANNELS else None
 
 
 def clean_status(value, default='new'):
@@ -255,7 +260,7 @@ def init_db():
             contact TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             birthday TEXT DEFAULT '',
-            channel TEXT DEFAULT 'WhatsApp',
+            channel TEXT DEFAULT 'Telegram',
             notes TEXT DEFAULT '',
             reminders INTEGER DEFAULT 1,
             created_at INTEGER NOT NULL
@@ -456,12 +461,18 @@ def booking_public(row):
     return {k: row[k] for k in row.keys()}
 
 
-def booking_event_payload(row):
+def booking_event_payload(row, conn=None):
     row = dict(row)
+    employee_name = ''
+    if conn is not None and row.get('employee_id'):
+        employee = conn.execute('SELECT name FROM employees WHERE id=?', (row['employee_id'],)).fetchone()
+        employee_name = employee['name'] if employee else ''
     return {
         'booking_id': row.get('id'),
         'service': row.get('service', ''), 'service_id': row.get('service_id'), 'employee_id': row.get('employee_id'),
         'date': row.get('date', ''), 'time': row.get('time', ''), 'status': row.get('status', ''), 'channel': row.get('channel', ''),
+        'lead_name': row.get('lead_name', ''), 'lead_contact': row.get('lead_contact', ''), 'note': row.get('note', ''),
+        'employee_name': employee_name,
     }
 
 
@@ -1063,7 +1074,9 @@ class Handler(BaseHTTPRequestHandler):
             name = (data.get('name') or '').strip()
             contact = norm_contact(data.get('contact'))
             password = data.get('password') or ''
-            channel = clean_channel(data.get('channel'))
+            channel = requested_channel(data.get('channel'))
+            if not channel:
+                return self.send_json(400, {'ok': False, 'error': 'Оберіть Telegram, Дзвінок або Email.'})
             if len(name) < 2 or len(contact) < 5 or len(password) < 8:
                 return self.send_json(400, {'ok': False, 'error': 'Заповніть ім’я, контакт і пароль мінімум 8 символів.'})
             try:
@@ -1108,7 +1121,9 @@ class Handler(BaseHTTPRequestHandler):
             user = self.require_user()
             if not user:
                 return
-            channel = clean_channel(data.get('channel'))
+            channel = requested_channel(data.get('channel'))
+            if not channel:
+                return self.send_json(400, {'ok': False, 'error': 'Оберіть Telegram, Дзвінок або Email.'})
             with db() as c:
                 c.execute('UPDATE users SET name=?, birthday=?, channel=?, notes=?, reminders=? WHERE id=?',
                     ((data.get('name') or user['name']).strip(), data.get('birthday',''), channel, data.get('notes',''), 1 if data.get('reminders', True) else 0, user['id']))
@@ -1119,7 +1134,9 @@ class Handler(BaseHTTPRequestHandler):
             user = self.require_user()
             if not user:
                 return
-            channel = clean_channel(data.get('channel') or user['channel'])
+            channel = requested_channel(data.get('channel'), clean_channel(user['channel']))
+            if not channel:
+                return self.send_json(400, {'ok': False, 'error': 'Оберіть Telegram, Дзвінок або Email.'})
             with db() as c:
                 cur = c.execute('''INSERT INTO bookings(user_id,external_id,lead_name,lead_contact,service,service_id,employee_id,start_at,end_at,date,time,note,channel,status,webhook_ok,created_at)
                              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
@@ -1129,7 +1146,11 @@ class Handler(BaseHTTPRequestHandler):
                      data.get('start_at',''), data.get('end_at',''), data.get('date',''), data.get('time',''), data.get('note',''), channel, clean_status(data.get('status')), 1 if data.get('webhookOk') else 0, now_ts()))
                 booking_id = cur.lastrowid
                 bookings = [dict(x) for x in c.execute('SELECT * FROM bookings WHERE user_id=? ORDER BY id DESC LIMIT 50', (user['id'],))]
-                enqueue_automation_event(c, 'booking_created', {'booking_id': booking_id, 'service': data.get('service','Масаж'), 'service_id': data.get('service_id'), 'employee_id': data.get('employee_id'), 'channel': channel})
+                booking_row = c.execute('SELECT * FROM bookings WHERE id=?', (booking_id,)).fetchone()
+                event_payload = booking_event_payload(booking_row, c)
+                enqueue_automation_event(c, 'booking_created', event_payload)
+                if channel == 'Email':
+                    enqueue_automation_event(c, 'customer_confirmation_requested', event_payload)
             return self.send_json(201, {'ok': True, 'booking_id': booking_id, 'bookings': bookings})
 
         if path == '/api/portal/intake':
@@ -1223,7 +1244,9 @@ class Handler(BaseHTTPRequestHandler):
             name = (data.get('name') or '').strip()
             contact = norm_contact(data.get('contact'))
             service = (data.get('service') or 'Масаж').strip()
-            channel = clean_channel(data.get('channel'))
+            channel = requested_channel(data.get('channel'))
+            if not channel:
+                return self.send_json(400, {'ok': False, 'error': 'Оберіть Telegram, Дзвінок або Email.'})
             if len(name) < 2 or len(contact) < 5 or not service:
                 return self.send_json(400, {'ok': False, 'error': 'Заповніть ім’я, контакт і послугу.'})
             user_id = None
@@ -1254,7 +1277,10 @@ class Handler(BaseHTTPRequestHandler):
                              VALUES(?,?,?,?,?,?,?,?,?,?)''',
                     ('booking_submitted', data.get('session_id',''), user_id, booking_id, service_id, employee_id,
                      data.get('page',''), data.get('source','site'), json.dumps({'channel': channel, 'service': service}, ensure_ascii=False), now_ts()))
-                enqueue_automation_event(c, 'booking_created', booking_event_payload(booking_row))
+                event_payload = booking_event_payload(booking_row, c)
+                enqueue_automation_event(c, 'booking_created', event_payload)
+                if channel == 'Email':
+                    enqueue_automation_event(c, 'customer_confirmation_requested', event_payload)
             return self.send_json(201, {'ok': True, 'booking_id': booking_id, 'linked': bool(user_id)})
 
         if path == '/api/admin/bookings/status':
@@ -1273,7 +1299,7 @@ class Handler(BaseHTTPRequestHandler):
                 if status in ('cancelled', 'no_show'):
                     c.execute('UPDATE appointments SET status=? WHERE booking_id=?', (status, booking_id))
                 row = c.execute('SELECT * FROM bookings WHERE id=?', (booking_id,)).fetchone()
-                enqueue_automation_event(c, 'booking_status_changed', {k:v for k,v in booking_event_payload(row).items() if k not in {'lead_name','lead_contact'}})
+                enqueue_automation_event(c, 'booking_status_changed', {k:v for k,v in booking_event_payload(row).items() if k not in {'lead_name','lead_contact','note','employee_name'}})
             return self.send_json(200, {'ok': True, 'booking': dict(row)})
 
         if path == '/api/admin/appointments':

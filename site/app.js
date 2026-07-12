@@ -342,7 +342,26 @@ function fillBookingFromUser() {
   if (!form || !user) return;
   if (!form.elements.name.value) form.elements.name.value = user.name || '';
   if (!form.elements.contact.value) form.elements.contact.value = user.contact || '';
-  if (form.elements.channel && !form.elements.channel.value) form.elements.channel.value = user.channel || '';
+  if (form.elements.channel && !form.elements.channel.value) form.elements.channel.value = ['Telegram', 'Дзвінок', 'Email'].includes(user.channel) ? user.channel : 'Telegram';
+  updateChannelContact(form);
+}
+
+function updateChannelContact(form) {
+  const channel = form?.elements?.channel?.value || 'Telegram';
+  const input = form?.elements?.contact;
+  if (!input) return;
+  const label = form.querySelector('[data-contact-label]') || $('#contactLabel', form);
+  const help = form.querySelector('[data-contact-help]') || $('#contactHelp', form);
+  const content = channel === 'Email'
+    ? { label: 'Email', placeholder: 'name@example.com', type: 'email', autocomplete: 'email', help: 'Вкажіть email, на який можна надіслати відповідь щодо запису.' }
+    : channel === 'Дзвінок'
+      ? { label: 'Номер телефону', placeholder: '+380 XX XXX XX XX', type: 'tel', autocomplete: 'tel', help: 'Вкажіть номер телефону, за яким адміністратор зможе вам зателефонувати.' }
+      : { label: 'Telegram-контакт', placeholder: 'Номер телефону або @username', type: 'text', autocomplete: 'username', help: 'Для повідомлень у Telegram потрібно спочатку самостійно запустити бота салону. Посилання на бота надасть адміністратор.' };
+  if (label) label.textContent = content.label;
+  if (help) help.textContent = content.help;
+  input.placeholder = content.placeholder;
+  input.type = content.type;
+  input.autocomplete = content.autocomplete;
 }
 
 async function refreshPortal() {
@@ -369,7 +388,7 @@ function renderPortal() {
   if (profileForm && !profileForm.dataset.dirty) {
     profileForm.elements.name.value = user.name || '';
     profileForm.elements.birthday.value = user.birthday || '';
-    profileForm.elements.channel.value = user.channel || 'WhatsApp';
+    profileForm.elements.channel.value = ['Telegram', 'Дзвінок', 'Email'].includes(user.channel) ? user.channel : 'Telegram';
     profileForm.elements.notes.value = user.notes || '';
     profileForm.elements.reminders.checked = Boolean(user.reminders);
   }
@@ -447,6 +466,8 @@ function initBookingForm() {
   const form = $('#bookingForm');
   if (!form) return;
   const status = $('#formStatus');
+  form.elements.channel?.addEventListener('change', () => updateChannelContact(form));
+  updateChannelContact(form);
   loadBookingServices().then(loadAvailabilitySlots);
   form.addEventListener('focusin', trackBookingFormOpened);
   form.elements.service?.addEventListener('change', () => {
@@ -518,6 +539,9 @@ function updateTabAria(tabs, panels) {
 function initClientPortal() {
   const authStatus = $('#authStatus');
   const profileStatus = $('#profileStatus');
+  const registerForm = $('#registerForm');
+  registerForm?.elements.channel?.addEventListener('change', () => updateChannelContact(registerForm));
+  updateChannelContact(registerForm);
 
   const authTabs = $$('[data-auth-tab]');
   const authPanels = $$('[data-auth-panel]');
@@ -609,7 +633,11 @@ function initClientPortal() {
     if (!form) return;
     form.elements.name.value = user?.name || '';
     form.elements.contact.value = user?.contact || '';
-    if (form.elements.channel) form.elements.channel.value = last?.channel || user?.channel || 'WhatsApp';
+    if (form.elements.channel) {
+      const channel = last?.channel || user?.channel;
+      form.elements.channel.value = ['Telegram', 'Дзвінок', 'Email'].includes(channel) ? channel : 'Telegram';
+      updateChannelContact(form);
+    }
     if (last?.service) form.elements.service.value = last.service;
     if (last?.note) form.elements.note.value = last.note;
     location.hash = '#rezervace';
@@ -666,7 +694,7 @@ function initReveal() {
   elements.forEach((element) => observer.observe(element));
 }
 
-// --- Premium features: quiz, sticky CTA, urgency banner, FAB ---
+// --- Premium features: quiz, sticky CTA, urgency banner ---
 
 function quizQuestions() {
   const serviceOptions = bookingCatalog.services.map((service) => ({
@@ -713,9 +741,8 @@ const QUIZ_FOLLOWUP_QUESTIONS = [
     question: 'Зручний канал зв’язку?',
     options: [
       { label: 'Telegram', value: 'Telegram' },
-      { label: 'WhatsApp', value: 'WhatsApp' },
-      { label: 'Viber', value: 'Viber' },
-      { label: 'Телефон', value: 'Дзвінок' }
+      { label: 'Телефон', value: 'Дзвінок' },
+      { label: 'Email', value: 'Email' }
     ]
   },
   {
@@ -960,12 +987,6 @@ function initTopBanner() {
   }
 }
 
-function initFab() {
-  const fab = $('.fab');
-  if (!fab) return;
-  const phone = fab.getAttribute('href')?.replace(/\D/g, '') || '380000000000';
-  if (phone === '380000000000') fab.style.display = 'none';
-}
 
 setMinDate();
 initNav();
@@ -977,4 +998,3 @@ initQuiz();
 initStickyCta();
 initAiAssistant();
 initTopBanner();
-initFab();
