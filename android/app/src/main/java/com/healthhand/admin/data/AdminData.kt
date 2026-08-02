@@ -15,7 +15,11 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
 
+data class PasswordSetupRequest(val password: String)
+data class PasswordSetupResponse(val ok: Boolean, val error: String? = null)
+
 interface AdminApi {
+ @POST("api/admin/auth/setup") suspend fun setupPassword(@Body request: PasswordSetupRequest): PasswordSetupResponse
  @GET("api/admin/v2/catalog") suspend fun catalog():CatalogResponse
  @POST("api/admin/v2/services") suspend fun createService(@Body r:ServiceRequest):ServiceResponse
  @PUT("api/admin/v2/services") suspend fun updateService(@Body r:ServiceRequest):ServiceResponse
@@ -60,6 +64,7 @@ class AdminRepository(private val store:SecureCredentialStore){
  fun hasCredential()=!store.token().isNullOrBlank()
  fun saveCredential(v:String)=store.save(v)
  fun logout()=store.clear()
+ suspend fun setupPassword(password:String)=api.setupPassword(PasswordSetupRequest(password)).requireOk()
  suspend fun catalog()=api.catalog().requireOk()
  suspend fun save(r:ServiceRequest)=(if(r.id==null)api.createService(r) else api.updateService(r)).requireOk()
  suspend fun deleteService(id:Int)=api.deleteService(id).requireOk()
@@ -78,6 +83,7 @@ class AdminRepository(private val store:SecureCredentialStore){
  suspend fun testAutomation()=api.testAutomation().requireOk()
 }
 private fun apiFailure(error:String?):Nothing=throw IllegalStateException(error?:"Сервер відхилив дію")
+private fun PasswordSetupResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 private fun CatalogResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 private fun ServiceResponse.requireOk()=also{if(!it.ok)apiFailure(it.error)}
 

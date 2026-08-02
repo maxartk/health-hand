@@ -64,6 +64,19 @@ class AdminViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun createPassword(password: String) {
+        if (password.length < 8 || _state.value.loginBusy) return
+        _state.update { it.copy(loginBusy = true, loginError = null) }
+        viewModelScope.launch {
+            runCatching { repo.setupPassword(password); repo.saveCredential(password); repo.catalog().toCatalogUi() }
+                .onSuccess { content -> _state.value = AppState(authenticated = true, catalog = CatalogState(content = content)) }
+                .onFailure { error ->
+                    repo.logout()
+                    _state.update { it.copy(loginBusy = false, loginError = userMessageFor(error.httpCode(), error) ?: "Не вдалося створити пароль") }
+                }
+        }
+    }
+
     fun logout() { repo.logout(); _state.value = AppState() }
 
     fun loadCatalog(refresh: Boolean = false) = viewModelScope.launch {

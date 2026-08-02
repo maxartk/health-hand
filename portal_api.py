@@ -254,6 +254,11 @@ def ensure_column(conn, table, column, definition):
 
 def init_db():
     with db() as c:
+        c.execute('''CREATE TABLE IF NOT EXISTS admin_credentials (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            password_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )''')
         c.execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -447,6 +452,22 @@ def verify_password(password, stored):
         return hmac.compare_digest(calc, digest)
     except Exception:
         return False
+
+
+def admin_password_hash():
+    with db() as c:
+        row = c.execute('SELECT password_hash FROM admin_credentials WHERE id=1').fetchone()
+    return row['password_hash'] if row else ''
+
+
+def set_initial_admin_password(password):
+    with db() as c:
+        try:
+            c.execute('INSERT INTO admin_credentials(id,password_hash,created_at) VALUES(1,?,?)',
+                      (hash_password(password), now_ts()))
+        except sqlite3.IntegrityError:
+            return False
+    return True
 
 
 def public_user(row):
@@ -700,7 +721,10 @@ def emit_automation_event(event_name, payload):
 def require_admin(handler):
     auth = handler.headers.get('Authorization', '')
     token = auth.split(' ')[-1] if auth.startswith('Bearer ') else ''
-    if not ADMIN_TOKEN or not secrets.compare_digest(token, ADMIN_TOKEN):
+    password_hash = admin_password_hash()
+    accepted_token = bool(ADMIN_TOKEN) and secrets.compare_digest(token, ADMIN_TOKEN)
+    accepted_password = bool(password_hash) and verify_password(token, password_hash)
+    if not accepted_token and not accepted_password:
         handler.send_json(403, {'ok': False, 'error': 'admin_required'})
         return False
     return True
@@ -1047,6 +1071,14 @@ class Handler(BaseHTTPRequestHandler):
             data = self.read_json()
         except Exception:
             return self.send_json(400, {'ok': False, 'error': 'bad_json'})
+
+        if path == '/api/admin/auth/setup':
+            password = data.get('password') or ''
+            if len(password) < 8:
+                return self.send_json(400, {'ok': False, 'error': 'admin_password_too_short'})
+            if not set_initial_admin_password(password):
+                return self.send_json(409, {'ok': False, 'error': 'admin_password_already_set'})
+            return self.send_json(201, {'ok': True})
 
         if path == '/api/events':
             event_name = clean_event_name(data.get('event_name') or data.get('event'))
