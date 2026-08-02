@@ -43,6 +43,7 @@ def test_automation_events_lists_recent_events_without_raw_payload(server):
     assert set(['event_id', 'event_name', 'status', 'attempts', 'last_error', 'created_at', 'updated_at']).issubset(event.keys())
     assert 'payload_json' not in event
     assert 'payload' not in event
+    assert event['summary'] == 'Клієнт B · Класичний масаж'
 
 
 def test_automation_retry_redelivers_a_failed_event(server, fake_n8n):

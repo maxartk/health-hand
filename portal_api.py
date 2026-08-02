@@ -531,10 +531,29 @@ def event_summary(conn, since_ts):
     return {'events': totals, 'top_services': services}
 
 
+def automation_event_summary(row):
+    try:
+        payload = json.loads(row.get('payload_json') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        payload = {}
+    event_name = row.get('event_name', '')
+    if event_name.startswith('booking_'):
+        parts = [payload.get('lead_name') or 'Клієнт', payload.get('service') or 'послуга']
+        when = ' '.join(filter(None, [payload.get('date'), payload.get('time')]))
+        return ' · '.join(parts + ([when] if when else []))
+    if event_name.startswith('service_'):
+        return payload.get('name') or 'Послуга'
+    if event_name.startswith('employee_'):
+        return payload.get('name') or 'Працівник'
+    if event_name.startswith('shift_'):
+        return payload.get('employee_name') or 'Графік працівника'
+    return ''
+
+
 def automation_event_public(row):
     row = dict(row)
     return {
-        'event_id': row['event_id'], 'event_name': row['event_name'], 'status': row['status'],
+        'event_id': row['event_id'], 'event_name': row['event_name'], 'summary': automation_event_summary(row), 'status': row['status'],
         'attempts': row['attempts'], 'last_error': row['last_error'] or None,
         'created_at': row['created_at'], 'updated_at': row['updated_at'],
         'delivered_at': row.get('delivered_at'), 'next_attempt_at': row['next_attempt_at'],
